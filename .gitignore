@@ -1,2 +1,8 @@
 # Some file on MacBooks
 .DS_Store
+
+# Files and folders for the python venv
+bin/*
+lib/*
+share/*
+pyvenv.cfg

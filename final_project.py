@@ -52,10 +52,8 @@ def calibrate_camera(path):
 
     return mtx, dist, newcameramtx
    
-
 def calculate_error():
     print()
-
 
 def extractParams(json_file):
     with open(json_file, 'r') as file:
@@ -63,13 +61,11 @@ def extractParams(json_file):
 
     camMatrix = data["cameraMatrix"]
     camMatrix = np.reshape(camMatrix, (3,3))
-    print(type(camMatrix))
 
     distortionCoef = data["distortionCoef"]
     distortionCoef = np.array(distortionCoef)
 
     return camMatrix, distortionCoef
-
 
 def drawlines(img, lines, pts):
     """
@@ -101,18 +97,123 @@ def drawlines(img, lines, pts):
 
     return img
 
+def detectMatches_bruteforce(img1,img2):
+    """
+    Detect matches between pictures using feature matching
+    inputs:
+    img1 - image 1
+    img2 - image 2
+    outputs:
+    imageMatches - the matching points on the combined image
+    pts1 - points from img1
+    pts2 - points from img2
+    """
+    sift = cv.SIFT_create()
 
+    keypoints1, descriptors1 = sift.detectAndCompute(img1,None)
+    keypoints2, descriptors2 = sift.detectAndCompute(img2,None)
+
+    # Initialize the feature matcher using brute-force matching
+    bf = cv.BFMatcher(cv.NORM_L2, crossCheck=True)
+
+    # Match the descriptors using brute-force matching
+    matches = bf.match(descriptors1, descriptors2)
+
+    # Sort the matches by distance (lower is better)
+    matches = sorted(matches, key=lambda x: x.distance)
+
+    # Draw the top 50 matches
+    numMatches = 40
+    imageMatches = cv.drawMatches(img1, keypoints1, img2, keypoints2, matches[:numMatches], None)
+    pts1 = np.float32([keypoints1[match.queryIdx].pt for match in matches])
+    pts2 = np.float32([keypoints2[match.trainIdx].pt for match in matches])
+
+    pts1 = np.int32(pts1)
+    pts2 = np.int32(pts2)
+    return imageMatches,pts1,pts2
+
+def detectMatches_flann(img1, img2):
+    sift = cv.SIFT_create()
+
+    # find the keypoints and descriptors with SIFT
+    kp1, des1 = sift.detectAndCompute(img1,None)
+    kp2, des2 = sift.detectAndCompute(img2,None)
+
+    # FLANN parameters
+    FLANN_INDEX_KDTREE = 1
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+    search_params = dict(checks=50)
+
+    flann = cv.FlannBasedMatcher(index_params,search_params)
+    matches = flann.knnMatch(des1,des2,k=2)
+
+    pts1 = []
+    pts2 = []
+    good = []
+
+    # ratio test as per Lowe's paper
+    for i,(m,n) in enumerate(matches):
+        if m.distance < 0.4*n.distance:
+            pts2.append(kp2[m.trainIdx].pt)
+            pts1.append(kp1[m.queryIdx].pt)
+            good.append([m])
+
+    # drawing nearest neighbours
+    imgMatches = cv.drawMatchesKnn(img1, kp1, img2, kp2, good, None)
+
+    return imgMatches, pts1, pts2
 
 
 if __name__ == "__main__":
     start_time = datetime.now()
     print(f"[{datetime.now() - start_time}] Starting image pipeline")
 
+    """ --- Uncomment to recalibrate cameras --- """
+    # left_mtx, left_dst_coef, left_newcameramtx = calibrate_camera(path = "./images/calibration/leftCal")
+    # right_mtx, right_dst_coef, right_newcameramtx = calibrate_camera(path = "./images/calibration/rightCal")
+
+    """ --- Uncomment to load calibration from file --- """
     left_mtx, left_dst_coef  = extractParams("./calibrationData/leftCal.json")
     right_mtx, right_dst_coef  = extractParams("./calibrationData/rightCal.json")
 
-    
 
+    imgLeft = cv.imread("./images/flight/leftFlight/flightleft_out_0000000510.png")
+    imgRight = cv.imread("./images/flight/rightFlight/flightright_out_0000000510.png")
+
+    #matchesImg1, pts1, pts2 = detectMatches_bruteforce(img1= imgLeft, img2= imgRight)
+    matchesImg2, pts1, pts2 = detectMatches_flann(img1= imgLeft, img2= imgRight)
+    cv.imshow("matches",matchesImg2)
+
+    #get fundamental matrix
+    pts1 = np.array(pts1)
+    pts2 = np.array(pts2)
+    F, inliers = cv.findFundamentalMat(pts1, pts2, cv.FM_RANSAC)
+    #get essential matrix
+    E = right_mtx.T @ F @ left_mtx
+    _,r,t,_ = cv.recoverPose(E,pts1,pts2,cameraMatrix=left_mtx)
+
+
+    #only keep inlier points from the fundamental matrix calculation
+    #ptsLeft = pts1[inliers.ravel()==1]
+    #ptsRight = pts2[inliers.ravel()==1]
+
+    h1, w1, _ = imgLeft.shape
+    h2, w2, _ = imgRight.shape
+
+    #rectify the images by getting R and P matrices to be used to undistort in next step
+    R1, R2, P1, P2, Q, _, _ = cv.stereoRectify(left_mtx, np.zeros((1,5)),right_mtx, np.zeros((1,5)),[w1,h1], r, t, alpha=1)
+
+    # Generate rectification maps
+    map1_left, map2_left = cv.initUndistortRectifyMap(left_mtx, np.zeros((1,5)), R1, P1[:,:-1], [w1,h1], cv.CV_32FC1)
+    map1_right, map2_right = cv.initUndistortRectifyMap(right_mtx, np.zeros((1,5)), R2, P2[:,:-1], [w2,h2], cv.CV_32FC1)
+
+    # Rectify left and right images
+    img1_rect = cv.remap(imgLeft, map1_left, map2_left, cv.INTER_LINEAR)
+    img2_rect = cv.remap(imgRight, map1_right, map2_right, cv.INTER_LINEAR)
+
+
+    cv.imshow("im1", img1_rect)
+    cv.imshow("im2", img2_rect)
 
     print(f"[{datetime.now() - start_time}] Pipeline complete!")
     cv.waitKey()

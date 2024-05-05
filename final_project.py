@@ -20,11 +20,10 @@ def calibrate_camera(path):
     # Defining the world coordinates for 3D points
     objp = np.zeros((1, CHESSBOARD[0] * CHESSBOARD[1], 3), np.float32)
     objp[0,:,:2] = np.mgrid[0:CHESSBOARD[0], 0:CHESSBOARD[1]].T.reshape(-1, 2)
-    prev_img_shape = None
 
     # Extracting path of individual image stored in a given directory
-    leftImages = glob.glob(path)
-    for fname in leftImages:
+    images = glob.glob(path)
+    for fname in images:
         img = cv.imread(fname)
         gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         # Find the chess board corners
@@ -65,7 +64,10 @@ def extractParams(json_file):
     distortionCoef = data["distortionCoef"]
     distortionCoef = np.array(distortionCoef)
 
-    return camMatrix, distortionCoef
+    newCamMatrix = data["newCameraMatrix"]
+    newCamMatrix = np.array(newCamMatrix)
+
+    return camMatrix, distortionCoef, newCamMatrix
 
 def drawlines(img, lines, pts):
     """
@@ -166,6 +168,8 @@ def detectMatches_flann(img1, img2, k:int = None):
 
     # drawing nearest neighbours
     imgMatches = cv.drawMatchesKnn(img1, kp1, img2, kp2, good, None, matchesMask=matches_mask)
+    pts1 = np.array(pts1)
+    pts2 = np.array(pts2)
 
     return imgMatches, pts1, pts2
 
@@ -179,8 +183,8 @@ if __name__ == "__main__":
     # right_mtx, right_dst_coef, right_newcameramtx = calibrate_camera(path = "./images/calibration/rightCal")
 
     """ --- Uncomment to load calibration from file --- """
-    left_mtx, left_dst_coef  = extractParams("./calibrationData/leftCal.json")
-    right_mtx, right_dst_coef  = extractParams("./calibrationData/rightCal.json")
+    left_mtx, left_dst_coef, left_newcameramtx  = extractParams("./calibrationData/leftCal.json")
+    right_mtx, right_dst_coef, right_newcameramtx  = extractParams("./calibrationData/rightCal.json")
 
 
     imgLeft = cv.imread("./images/flight/leftFlight/flightleft_out_0000000510.png")
@@ -191,13 +195,17 @@ if __name__ == "__main__":
     cv.imshow("matches",matchesImg2)
 
     #get fundamental matrix
-    pts1 = np.array(pts1)
-    pts2 = np.array(pts2)
-    F, inliers = cv.findFundamentalMat(pts1, pts2, cv.FM_RANSAC)
+    # changing from LMEDS to RANSAC produces wildly different results
+    F, inliers = cv.findFundamentalMat(pts1, pts2, cv.FM_LMEDS)
     #get essential matrix
     E = right_mtx.T @ F @ left_mtx
-    _,r,t,_ = cv.recoverPose(E,pts1,pts2,cameraMatrix=left_mtx)
-
+    print(E)
+    #_,r,t,_ = cv.recoverPose(E,pts1,pts2,cameraMatrix=left_mtx)
+    # using this function because we have two different camera matrices
+    numberOfInliers, E, R, t, mask = cv.recoverPose(pts1, pts2, left_mtx, left_dst_coef, right_mtx, right_dst_coef, method=cv.LMEDS)
+    print(E)
+    # we see here that the two different methods return different E matrix????
+    # something is wrong at this point
 
     #only keep inlier points from the fundamental matrix calculation
     #ptsLeft = pts1[inliers.ravel()==1]

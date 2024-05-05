@@ -6,3 +6,6 @@ bin/*
 lib/*
 share/*
 pyvenv.cfg
+
+# Config files for VSCode
+.vscode/*

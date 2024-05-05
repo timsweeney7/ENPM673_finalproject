@@ -132,7 +132,8 @@ def detectMatches_bruteforce(img1,img2):
     pts2 = np.int32(pts2)
     return imageMatches,pts1,pts2
 
-def detectMatches_flann(img1, img2):
+
+def detectMatches_flann(img1, img2, k:int = None):
     sift = cv.SIFT_create()
 
     # find the keypoints and descriptors with SIFT
@@ -154,12 +155,17 @@ def detectMatches_flann(img1, img2):
     # ratio test as per Lowe's paper
     for i,(m,n) in enumerate(matches):
         if m.distance < 0.4*n.distance:
-            pts2.append(kp2[m.trainIdx].pt)
             pts1.append(kp1[m.queryIdx].pt)
+            pts2.append(kp2[m.trainIdx].pt)
             good.append([m])
 
+    matches_mask = None
+    if k is not None:
+        matches_mask = [[0]] * len(good)
+        matches_mask[0:k] = [[1]] * k
+
     # drawing nearest neighbours
-    imgMatches = cv.drawMatchesKnn(img1, kp1, img2, kp2, good, None)
+    imgMatches = cv.drawMatchesKnn(img1, kp1, img2, kp2, good, None, matchesMask=matches_mask)
 
     return imgMatches, pts1, pts2
 
@@ -181,7 +187,7 @@ if __name__ == "__main__":
     imgRight = cv.imread("./images/flight/rightFlight/flightright_out_0000000510.png")
 
     #matchesImg1, pts1, pts2 = detectMatches_bruteforce(img1= imgLeft, img2= imgRight)
-    matchesImg2, pts1, pts2 = detectMatches_flann(img1= imgLeft, img2= imgRight)
+    matchesImg2, pts1, pts2 = detectMatches_flann(img1= imgLeft, img2= imgRight, k=10)
     cv.imshow("matches",matchesImg2)
 
     #get fundamental matrix

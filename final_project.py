@@ -1,3 +1,7 @@
+"""
+Zed 2i baseline is 120mm
+"""
+
 import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
@@ -6,6 +10,7 @@ import glob
 import ast
 from datetime import datetime
 import json
+import os
 
 
 def calibrate_camera(path):
@@ -19,41 +24,57 @@ def calibrate_camera(path):
 
     # Defining the world coordinates for 3D points
     objp = np.zeros((1, CHESSBOARD[0] * CHESSBOARD[1], 3), np.float32)
+    # Change from zeros to list of (x, y, z) coordinates for chessboard corners in chessboard plane ex: (1, 4, 0)
     objp[0,:,:2] = np.mgrid[0:CHESSBOARD[0], 0:CHESSBOARD[1]].T.reshape(-1, 2)
-    prev_img_shape = None
 
     # Extracting path of individual image stored in a given directory
-    leftImages = glob.glob(path)
-    for fname in leftImages:
+    images = glob.glob(path)
+    for fname in images:
+        start = datetime.now()
         img = cv.imread(fname)
         gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         # Find the chess board corners
         # If desired number of corners are found in the image then ret = true
         ret, corners = cv.findChessboardCorners(gray, CHESSBOARD, cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_FAST_CHECK + cv.CALIB_CB_NORMALIZE_IMAGE)
+        end = datetime.now()
         """
         If desired number of corner are detected,
         we refine the pixel coordinates and display
         them on the images of chess board
         """
+        print(f'{fname}: {end-start}')
         if ret == True:
             objpoints.append(objp)
             # refining pixel coordinates for given 2d points.
             corners2 = cv.cornerSubPix(image= gray, corners= corners, winSize=(11,11), zeroZone= (-1,-1), criteria= criteria)
             imgpoints.append(corners2)
+        if ret == False:
+            os.remove(fname)
 
     """
     Performing camera calibration by passing the value of known 3D points (objpoints)
     and corresponding pixel coordinates of the detected corners (imgpoints)
     """
-    leftRet, mtx, dist, leftRvecs, leftTvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-
     h,w = img.shape[:2]
-    newcameramtx, leftroi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+    ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, (w,h), None, None)
+    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+
+    """ Calculate the reprojection error """
+    total_error = 0 
+    error_list = []
+    for i in range(len(objpoints)):
+        imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], mtx, dist)
+        error = cv.norm(imgpoints[i], imgpoints2, cv.NORM_L2)
+        error_list.append(error)
+        total_error += error
+    print(f"Average error: {total_error/len(objpoints)}")
+
+    plt.plot(error_list)
+    plt.show()
 
     return mtx, dist, newcameramtx
    
-def calculate_error():
-    print()
+
 
 def extractParams(json_file):
     with open(json_file, 'r') as file:
@@ -175,16 +196,18 @@ if __name__ == "__main__":
     print(f"[{datetime.now() - start_time}] Starting image pipeline")
 
     """ --- Uncomment to recalibrate cameras --- """
-    # left_mtx, left_dst_coef, left_newcameramtx = calibrate_camera(path = "./images/calibration/leftCal")
-    # right_mtx, right_dst_coef, right_newcameramtx = calibrate_camera(path = "./images/calibration/rightCal")
+    left_mtx, left_dst_coef, left_newcameramtx = calibrate_camera(path = "./droneDataSet/images/calibration/leftCal/*.png")
+    right_mtx, right_dst_coef, right_newcameramtx = calibrate_camera(path = "./droneDataSet/images/calibration/rightCal/*.png")
+
+
 
     """ --- Uncomment to load calibration from file --- """
-    left_mtx, left_dst_coef  = extractParams("./calibrationData/leftCal.json")
-    right_mtx, right_dst_coef  = extractParams("./calibrationData/rightCal.json")
+    #left_mtx, left_dst_coef  = extractParams("./calibrationData/leftCal.json")
+    #right_mtx, right_dst_coef  = extractParams("./calibrationData/rightCal.json")
 
 
-    imgLeft = cv.imread("./images/flight/leftFlight/flightleft_out_0000000510.png")
-    imgRight = cv.imread("./images/flight/rightFlight/flightright_out_0000000510.png")
+    imgLeft = cv.imread("./droneDataSet/images/flight/leftFlight/flightleft_out_0000000510.png")
+    imgRight = cv.imread("./droneDataSet/images/flight/rightFlight/flightright_out_0000000510.png")
 
     #matchesImg1, pts1, pts2 = detectMatches_bruteforce(img1= imgLeft, img2= imgRight)
     matchesImg2, pts1, pts2 = detectMatches_flann(img1= imgLeft, img2= imgRight, k=10)

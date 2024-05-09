@@ -84,9 +84,9 @@ def compute_left_disparity_map(img_left, img_right, matcher='bm', verbose=False)
                                         P2 = 32 * 1 * block_size ** 2,
                                         mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
         
-    start = datetime.datetime.now()
+    start = datetime.now()
     disp_left = matcher.compute(img_left, img_right).astype(np.float32)/16
-    end = datetime.datetime.now()
+    end = datetime.now()
     
     if verbose:
         print(f'Time to compute disparity map using Stereo{matcher_name.upper()}', end-start)
@@ -309,8 +309,8 @@ def estimate_motion(match, kp1, kp2, k, depth1=None, max_depth=3000):
     rmat = np.eye(3)
     tvec = np.zeros((3, 1))
     
-    image1_points = np.float32([kp1[m.queryIdx].pt for m in match])
-    image2_points = np.float32([kp2[m.trainIdx].pt for m in match])
+    image1_points = np.float32([kp1[m.queryIdx].pt for (m,n) in match])
+    image2_points = np.float32([kp2[m.trainIdx].pt for (m,n) in match])
 
     if depth1 is not None:
         cx = k[0, 2]
@@ -428,21 +428,15 @@ def visual_odometry(handler, detector='sift', matching='BF', filter_match_distan
     # Iterate through all frames of the sequence
     for i in range(num_frames - 1):
         # Stop if we've reached the second to last frame, since we need two sequential frames
-        #if i == num_frames - 1:
-        #    break
+
         # Start timer for frame
-        start = datetime.datetime.now()
+        start = datetime.now()
         # Get our stereo images for depth estimation
         if handler.low_memory:
             image_left = image_plus1
             image_right = next(handler.images_right)
             # Get next frame in the left camera for visual odometry
             image_plus1 = next(handler.images_left)
-        else:
-            image_left = handler.images_left[i]
-            image_right = handler.images_right[i]
-            # Get next frame in the left camera for visual odometry
-            image_plus1 = handler.images_left[i+1]
         
         # Estimate depth if using stereo depth estimation (recommended)
         if depth_type == 'stereo':
@@ -488,7 +482,7 @@ def visual_odometry(handler, detector='sift', matching='BF', filter_match_distan
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
         # End the timer for the frame and report frame rate to user
-        end = datetime.datetime.now()
+        end = datetime.now()
         print('Time to compute frame {}:'.format(i+1), end-start)
         
         if plot:
@@ -497,9 +491,6 @@ def visual_odometry(handler, detector='sift', matching='BF', filter_match_distan
             zs = trajectory[:i+2, 2, 3]
             plt.plot(xs, ys, zs, c='chartreuse')
             plt.pause(1e-32)
-            
-    if plot:        
-        plt.close()
         
     return trajectory
 
@@ -537,4 +528,5 @@ if __name__ == "__main__":
     #plt.hist(np.ravel(depth))
 
     """
-    visual_odometry(handler, plot=True)
+    visual_odometry(handler, subset=200, plot=True)
+    plt.waitforbuttonpress()

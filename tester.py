@@ -21,7 +21,6 @@ if __name__ == "__main__":
     right_image_files.sort()
     num_frames = len(left_image_files)
 
-
     # Get calibration details for scene
     calib = pd.read_csv(seq_dir + 'calib.txt', delimiter=' ', header=None, index_col=0)
     P0 = np.array(calib.loc['P0:']).reshape((3,4)) # left 
@@ -38,6 +37,7 @@ if __name__ == "__main__":
 
     imheight = first_image_left.shape[0]
     imwidth = first_image_left.shape[1]
+
     # Establish homogeneous transformation matrix. First pose is identity    
     T_tot = np.eye(4)
     trajectory = np.zeros((num_frames, 3, 4))
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     ys = gt[:, 1, 3]
     zs = gt[:, 2, 3]
     ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
-    ax.plot(xs, ys, zs, c='k')
+    ax.plot(xs, ys, zs, c='b')
 
     # Choose stereo matching algorithm
     matcher_name = 'sgbm'
@@ -132,14 +132,14 @@ if __name__ == "__main__":
         delete = []
 
         # Extract depth information of query image at match points and build 3D positions
-        for i, (u, v) in enumerate(image1_points):
+        for j, (u, v) in enumerate(image1_points):
             z = depth[int(v), int(u)]
             # If the depth at the position of our matched feature is above 3000, then we
             # ignore this feature because we don't actually know the depth and it will throw
             # our calculations off. We add its index to a list of coordinates to delete from our
             # keypoint lists, and continue the loop. After the loop, we remove these indices
             if z > 3000:
-                delete.append(i)
+                delete.append(j)
                 continue
                 
             # Use arithmetic to extract x and y (faster than using inverse of k)
@@ -176,11 +176,10 @@ if __name__ == "__main__":
         # End the timer for the frame and report frame rate to user
         end = datetime.now()
         print('Time to compute frame {}:'.format(i+1), end-start)
-
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='chartreuse')
+        plt.plot(xs, ys, zs, c='r')
         plt.pause(1e-32)
     
     plt.waitforbuttonpress()

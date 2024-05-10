@@ -149,12 +149,12 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
                 continue
                 
             # Use arithmetic to extract x and y (faster than using inverse of k)
-            #x = z*(u-cx)/fx
-            #y = z*(v-cy)/fy
-            #object_points = np.vstack([object_points, np.array([x, y, z])])
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
             # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
             #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
-            object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
 
         image1_points = np.delete(image1_points, delete, 0)
         image2_points = np.delete(image2_points, delete, 0)
@@ -194,7 +194,7 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
     print(f"Program execution time: {total_time}s")
     plt.plot(xs, ys, zs, c='r')
     plt.waitforbuttonpress()
-    return trajectory
+    return trajectory, mean_time, total_time
 
 
 def save_results(results, gt, mean_time, total_time, path):
@@ -224,7 +224,6 @@ if __name__ == "__main__":
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
 
-    """
     # Setup plot that will be used on each iteration of code
     fig = plt.figure(figsize=(14, 14))
     ax = fig.add_subplot(projection='3d')
@@ -236,23 +235,14 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory = algorith_1(start_pose= 950, end_pose=1500)
+    computed_trajectory, mean_time, total_time = algorith_1()
 
     # Compute Error 
     #  error = compute_error(gt, computed_trajectory)
 
     # Save results
-    # save_results(computed_trajectory, error, path_for_save_file)
-    """
-    fake_data = np.zeros((1,3,4))
-    fake_data_list = np.zeros((0,3,4))
-    for i in range(3):
-        fake_data[0,2,3] = i
-        fake_data_list = np.vstack([fake_data_list, fake_data])
-    fake_data = np.array([[[1,2,3,4],[5,6,7,8],[9,10,11,12]]])
-    fake_data_list = np.vstack([fake_data_list, fake_data])
-    path = './kittiDataSet/results/test_output.json'
-
-    save_results(fake_data_list, gt, 0, 3000, path)
+    path = "./kittiDataSet/results/algorithm_1.json"
+    save_results(computed_trajectory, gt, mean_time, total_time, path)
+    
 
     

@@ -6,6 +6,7 @@ import os
 import pandas as pd
 from datetime import datetime
 import time
+import json
 
 
 def data_set_setup(sequence) -> tuple:
@@ -61,8 +62,12 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
     k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
     t_right = (t_right / t_right[3])[:3]
     # Get constant values for algorithm 
-    f = k_left[0][0]            # focal length of x axis for left camera
+    #f = k_left[0][0]            # focal length of x axis for left camera
     b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
 
 
     # Establish homogeneous transformation matrix. First pose is ground truth    
@@ -72,6 +77,8 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
 
     # Choose stereo matching algorithm
     matcher_name = 'sgbm'
+
+
 
     for i in range(num_frames - 1):
         # Stop if we've reached the second to last frame, since we need two sequential frames
@@ -108,7 +115,7 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
         
         # Make empty depth map then fill with depth
         depth = np.ones(disp.shape)
-        depth = f * b / disp
+        depth = fx * b / disp
         
 
         # Get keypoints and descriptors for left camera image of two sequential frames
@@ -120,7 +127,7 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
         # Get matches between features detected in the two images
         matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
         matches = matcher.knnMatch(des0, des1, k=2)
-        matches = sorted(matches, key = lambda x:x[0].distance)
+        matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
             
         # Estimate motion between sequential images of the left camera
         
@@ -130,43 +137,34 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
         image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
         image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
         
-        cx = k_left[0, 2]
-        cy = k_left[1, 2]
-        fx = k_left[0, 0]
-        fy = k_left[1, 1]
         object_points = np.zeros((0, 3))
         delete = []
 
         # Extract depth information of query image at match points and build 3D positions
         for j, (u, v) in enumerate(image1_points):
             z = depth[int(v), int(u)]
-            # If the depth at the position of our matched feature is above 3000, then we
-            # ignore this feature because we don't actually know the depth and it will throw
-            # our calculations off. We add its index to a list of coordinates to delete from our
-            # keypoint lists, and continue the loop. After the loop, we remove these indices
+            # prune points with a depth greater than a specified limit because they are erroneous
             if z > 3000:
                 delete.append(j)
                 continue
                 
             # Use arithmetic to extract x and y (faster than using inverse of k)
-            x = z*(u-cx)/fx
-            y = z*(v-cy)/fy
-            object_points = np.vstack([object_points, np.array([x, y, z])])
+            #x = z*(u-cx)/fx
+            #y = z*(v-cy)/fy
+            #object_points = np.vstack([object_points, np.array([x, y, z])])
             # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
             #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
 
         image1_points = np.delete(image1_points, delete, 0)
         image2_points = np.delete(image2_points, delete, 0)
         
-        # Use PnP algorithm with RANSAC for robustness to outliers
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
         _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
-        #print('Number of inliers: {}/{} matched features'.format(len(inliers), len(match)))
         
-        # Above function returns axis angle rotation representation rvec, use Rodrigues formula
-        # to convert this to our desired format of a 3x3 rotation matrix
+        # Convert from Rodriques format to rotation matrix format
         rmat = cv2.Rodrigues(rvec)[0]
         
-
         # Create blank homogeneous transformation matrix
         Tmat = np.eye(4)
         # Place resulting rotation matrix  and translation vector in their proper locations
@@ -174,7 +172,7 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
         Tmat[:3, :3] = rmat
         Tmat[:3, 3] = tvec.T
         
-        T_tot = T_tot.dot(np.linalg.inv(Tmat))
+        T_tot = T_tot @ np.linalg.inv(Tmat)
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -199,13 +197,34 @@ def algorith_1(start_pose:int = None, end_pose:int = None):
     return trajectory
 
 
+def save_results(results, gt, mean_time, total_time, path):
+
+    results_writable = []
+    for i in range(len(results)):
+        results_writable.append(list(np.ravel(results[i])))
+
+    gt_writable = []
+    for i in range(len(gt)):
+        gt_writable.append(list(np.ravel(gt[i]))) 
+    
+    data_to_write = {
+        "odometry" : results_writable,
+        "ground truth": gt_writable,
+        "mean time" : mean_time,
+        "total time" : total_time
+    }
+
+    with open(path, "w") as outfile:
+        json.dump(data_to_write, outfile)
+
+
 if __name__ == "__main__":
     
     start_time = datetime.now()
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
 
-
+    """
     # Setup plot that will be used on each iteration of code
     fig = plt.figure(figsize=(14, 14))
     ax = fig.add_subplot(projection='3d')
@@ -224,3 +243,16 @@ if __name__ == "__main__":
 
     # Save results
     # save_results(computed_trajectory, error, path_for_save_file)
+    """
+    fake_data = np.zeros((1,3,4))
+    fake_data_list = np.zeros((0,3,4))
+    for i in range(3):
+        fake_data[0,2,3] = i
+        fake_data_list = np.vstack([fake_data_list, fake_data])
+    fake_data = np.array([[[1,2,3,4],[5,6,7,8],[9,10,11,12]]])
+    fake_data_list = np.vstack([fake_data_list, fake_data])
+    path = './kittiDataSet/results/test_output.json'
+
+    save_results(fake_data_list, gt, 0, 3000, path)
+
+    

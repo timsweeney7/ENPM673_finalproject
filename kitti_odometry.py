@@ -317,7 +317,7 @@ def estimate_motion(match, kp1, kp2, k, depth1=None, max_depth=3000):
         cy = k[1, 2]
         fx = k[0, 0]
         fy = k[1, 1]
-        object_points = np.zeros((0, 3))
+        object_points = np.zeros((0, 3)) # array with no width. setup for late
         delete = []
 
         # Extract depth information of query image at match points and build 3D positions
@@ -332,7 +332,7 @@ def estimate_motion(match, kp1, kp2, k, depth1=None, max_depth=3000):
                 continue
                 
             # Use arithmetic to extract x and y (faster than using inverse of k)
-            x = z*(u-cx)/fx
+            x = z*(u-cx)/fx  # z is depth.  u-cx transforms x position to camera coor. fx???
             y = z*(v-cy)/fy
             object_points = np.vstack([object_points, np.array([x, y, z])])
             # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
@@ -343,6 +343,7 @@ def estimate_motion(match, kp1, kp2, k, depth1=None, max_depth=3000):
         
         # Use PnP algorithm with RANSAC for robustness to outliers
         _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k, None)
+        _, rvec_test, tvec_test, inliers_test = cv2.solvePnPRansac(object_points, image1_points, k, None)
         #print('Number of inliers: {}/{} matched features'.format(len(inliers), len(match)))
         
         # Above function returns axis angle rotation representation rvec, use Rodrigues formula
@@ -439,16 +440,12 @@ def visual_odometry(handler, detector='sift', matching='BF', filter_match_distan
             image_plus1 = next(handler.images_left)
         
         # Estimate depth if using stereo depth estimation (recommended)
-        if depth_type == 'stereo':
-            depth = stereo_2_depth(image_left, 
-                                   image_right, 
-                                   P0=handler.P0, 
-                                   P1=handler.P1,
-                                   matcher=stereo_matcher)
-        # Otherwise use Essential Matrix decomposition (ambiguous scale)
-        else:
-            depth = None
-            
+        depth = stereo_2_depth(image_left, 
+                                image_right, 
+                                P0=handler.P0, 
+                                P1=handler.P1,
+                                matcher=stereo_matcher)
+       
         # Get keypoints and descriptors for left camera image of two sequential frames
         kp0, des0 = extract_features(image_left, detector, mask)
         kp1, des1 = extract_features(image_plus1, detector, mask)

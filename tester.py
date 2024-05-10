@@ -44,8 +44,14 @@ def data_set_setup(sequence) -> tuple:
 
 
 
-def algorith_1():
+def algorith_1(start_pose:int = None, end_pose:int = None):
     
+    if(end_pose == None):
+        end_pose = len(left_image_files)
+    if(start_pose == None):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
     # statistics for algo execution
     total_time = 0
 
@@ -59,8 +65,8 @@ def algorith_1():
     b = t_right[0] - t_left[0]  #  baseline of stereo pair
 
 
-    # Establish homogeneous transformation matrix. First pose is identity    
-    T_tot = np.eye(4)
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
     trajectory = np.zeros((num_frames, 3, 4))
     trajectory[0] = T_tot[:3, :]
 
@@ -74,9 +80,9 @@ def algorith_1():
         start = time.time()
         # Get our stereo images for depth estimation
         seq_dir = f'./kittiDataSet/sequences/{sequence}/'
-        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[i], cv2.IMREAD_UNCHANGED)
-        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[i], cv2.IMREAD_UNCHANGED)
-        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[i+1], cv2.IMREAD_UNCHANGED)  
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
         sad_window = 6
         num_disparities = sad_window * 16
         block_size = 11
@@ -198,7 +204,6 @@ if __name__ == "__main__":
     start_time = datetime.now()
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
-    num_frames = len(left_image_files)
 
 
     # Setup plot that will be used on each iteration of code
@@ -212,7 +217,7 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory = algorith_1()
+    computed_trajectory = algorith_1(start_pose= 950, end_pose=1500)
 
     # Compute Error 
     #  error = compute_error(gt, computed_trajectory)

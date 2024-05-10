@@ -5,11 +5,14 @@ import numpy as np
 import os
 import pandas as pd
 from datetime import datetime
+import time
 
 
-if __name__ == "__main__":
-    start_time = datetime.now()
-    sequence = "00"
+def data_set_setup(sequence) -> tuple:
+    """
+    return:  (left_images_list, right_images_list, P0, P1, groundTruth, times)
+    """
+
     seq_dir = f'./kittiDataSet/sequences/{sequence}/'
     poses_dir = f'./kittiDataSet/poses/{sequence}.txt'
     poses = pd.read_csv(poses_dir, delimiter=' ', header=None)
@@ -19,9 +22,8 @@ if __name__ == "__main__":
     left_image_files.sort()
     right_image_files = os.listdir(seq_dir + 'image_1')
     right_image_files.sort()
-    num_frames = len(left_image_files)
 
-    # Get calibration details for scene
+     # Get calibration details for scene
     calib = pd.read_csv(seq_dir + 'calib.txt', delimiter=' ', header=None, index_col=0)
     P0 = np.array(calib.loc['P0:']).reshape((3,4)) # left 
     P1 = np.array(calib.loc['P1:']).reshape((3,4)) # right
@@ -32,47 +34,46 @@ if __name__ == "__main__":
     for i in range(len(poses)):
         gt[i] = np.array(poses.iloc[i]).reshape((3, 4))
 
+    # get first images --- Currently not used
     first_image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[0], cv2.IMREAD_UNCHANGED)
     first_image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[0], cv2.IMREAD_UNCHANGED)
-
     imheight = first_image_left.shape[0]
     imwidth = first_image_left.shape[1]
 
-    # Establish homogeneous transformation matrix. First pose is identity    
-    T_tot = np.eye(4)
-    trajectory = np.zeros((num_frames, 3, 4))
-    trajectory[0] = T_tot[:3, :]
+    return (left_image_files, right_image_files, P0, P1, gt, times)
+
+
+
+def algorith_1():
+    
+    # statistics for algo execution
+    total_time = 0
 
     # Decompose left/right camera projection matrix to get intrinsic k matrix
     k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
     t_left = (t_left / t_left[3])[:3]
     k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
     t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    f = k_left[0][0]            # focal length of x axis for left camera
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
 
-    # Setup plot that will be used on each iteration of code
-    fig = plt.figure(figsize=(14, 14))
-    ax = fig.add_subplot(projection='3d')
-    ax.view_init(elev=-20, azim=270)
-    xs = gt[:, 0, 3]
-    ys = gt[:, 1, 3]
-    zs = gt[:, 2, 3]
-    ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
-    ax.plot(xs, ys, zs, c='b')
+
+    # Establish homogeneous transformation matrix. First pose is identity    
+    T_tot = np.eye(4)
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
 
     # Choose stereo matching algorithm
     matcher_name = 'sgbm'
-
-    # Get constant values for algorithm 
-    f = k_left[0][0]  # focal length of x axis for left camera
-    b = t_right[0] - t_left[0] #  baseline of stereo pair
-
 
     for i in range(num_frames - 1):
         # Stop if we've reached the second to last frame, since we need two sequential frames
 
         # Start timer for frame
-        start = datetime.now()
+        start = time.time()
         # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
         image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[i], cv2.IMREAD_UNCHANGED)
         image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[i], cv2.IMREAD_UNCHANGED)
         image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[i+1], cv2.IMREAD_UNCHANGED)  
@@ -94,8 +95,7 @@ if __name__ == "__main__":
             
         disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
         
-    
-            
+
         # Avoid instability and division by zero
         disp[disp == 0.0] = 0.1
         disp[disp == -1.0] = 0.1
@@ -161,7 +161,6 @@ if __name__ == "__main__":
         rmat = cv2.Rodrigues(rvec)[0]
         
 
-
         # Create blank homogeneous transformation matrix
         Tmat = np.eye(4)
         # Place resulting rotation matrix  and translation vector in their proper locations
@@ -173,13 +172,50 @@ if __name__ == "__main__":
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
+        
         # End the timer for the frame and report frame rate to user
-        end = datetime.now()
-        print('Time to compute frame {}:'.format(i+1), end-start)
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
         plt.plot(xs, ys, zs, c='r')
         plt.pause(1e-32)
-    
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    plt.plot(xs, ys, zs, c='r')
     plt.waitforbuttonpress()
+    return trajectory
+
+
+if __name__ == "__main__":
+    
+    start_time = datetime.now()
+    sequence = "00"
+    left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
+    num_frames = len(left_image_files)
+
+
+    # Setup plot that will be used on each iteration of code
+    fig = plt.figure(figsize=(14, 14))
+    ax = fig.add_subplot(projection='3d')
+    ax.view_init(elev=-20, azim=270)
+    xs = gt[:, 0, 3]
+    ys = gt[:, 1, 3]
+    zs = gt[:, 2, 3]
+    ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
+    ax.plot(xs, ys, zs, c='b')
+    
+    # Run algorithm
+    computed_trajectory = algorith_1()
+
+    # Compute Error 
+    #  error = compute_error(gt, computed_trajectory)
+
+    # Save results
+    # save_results(computed_trajectory, error, path_for_save_file)

@@ -491,7 +491,7 @@ def algorithm_3(start_pose:int = None, end_pose:int = None):
 
 
 """ --- using Lowe's Ratio test to determine good matches --- """
-""" ---         using StereoBM      ----"""
+""" ---         using StereoBM      ----  """
 def algorithm_4(start_pose:int = None, end_pose:int = None):
     
     if(end_pose == None):
@@ -642,6 +642,157 @@ def algorithm_4(start_pose:int = None, end_pose:int = None):
     return trajectory, mean_time, total_time
 
 
+""" --- Using ORB for feature detection instead of SIFT  --- """
+""" ---         using StereoBM      ----  """
+def algorithm_6(start_pose:int = None, end_pose:int = None):
+    
+    if(end_pose == None):
+        end_pose = len(left_image_files)
+    if(start_pose == None):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.ORB_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        #matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.65*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        plt.plot(xs, ys, zs, c='r')
+        plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    plt.plot(xs, ys, zs, c='r')
+    plt.waitforbuttonpress()
+    return trajectory, mean_time, total_time
+
 
 def save_results(results, gt, mean_time, total_time, path):
 
@@ -704,7 +855,7 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_4(start_pose= 0, end_pose=1000)
+    computed_trajectory, mean_time, total_time = algorithm_6(start_pose= 0, end_pose=1800)
 
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory)

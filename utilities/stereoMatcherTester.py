@@ -103,20 +103,20 @@ while True:
 print()
 print()
 
-print(f'numDisparities: {numDisparities * 16}')
-print(f'blockSize: {blockSize*2 +5}')
+print(f'numDisparities: {numDisparities}')
+print(f'blockSize: {blockSize}')
 print(f'preFilterCap: {preFilterCap}')
 print(f'uniquenessRatio: {uniquenessRatio}')
 print(f'speckleRange: {speckleRange}')
-print(f'speckleWindowSize: {speckleWindowSize*2}')
+print(f'speckleWindowSize: {speckleWindowSize}')
 print(f'disp12MaxDiff: {disp12MaxDiff}')
 print(f'minDisparity: {minDisparity}')
 
 if type(stereo) == cv.StereoBM:
     print(f'preFilterType: {preFilterType}')
-    print(f'preFilterSize: {preFilterSize*2+5}')
+    print(f'preFilterSize: {preFilterSize}')
     print(f'textureThreshold: {textureThreshold}')
 else:
-    print(f'P1: {P1*16}')
-    print(f'P2: {P2*32}')
+    print(f'P1: {P1}')
+    print(f'P2: {P2}')
     print(f'mode: {mode}')

@@ -93,22 +93,18 @@ def algorithm_1(start_pose:int = None, end_pose:int = None):
         sad_window = 6
         num_disparities = sad_window * 16
         block_size = 11
+            
         
-        if matcher_name == 'bm':
-            matcher = cv2.StereoBM_create(numDisparities=num_disparities,
-                                        blockSize=block_size)
+        matcher = cv2.StereoSGBM_create(numDisparities=num_disparities,
+                                        minDisparity=0,
+                                        blockSize=block_size,
+                                        P1 = 8 * 1 * block_size ** 2,
+                                        P2 = 32 * 1 * block_size ** 2,
+                                        mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
             
-        elif matcher_name == 'sgbm':
-            matcher = cv2.StereoSGBM_create(numDisparities=num_disparities,
-                                            minDisparity=0,
-                                            blockSize=block_size,
-                                            P1 = 8 * 1 * block_size ** 2,
-                                            P2 = 32 * 1 * block_size ** 2,
-                                            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
-            
+
         disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
         
-
         # Avoid instability and division by zero
         disp[disp == 0.0] = 0.1
         disp[disp == -1.0] = 0.1
@@ -197,7 +193,7 @@ def algorithm_1(start_pose:int = None, end_pose:int = None):
     return trajectory, mean_time, total_time
 
 
-def algorith_2(start_pose:int = None, end_pose:int = None):
+def algorithm_2(start_pose:int = None, end_pose:int = None):
     
     if(end_pose == None):
         end_pose = len(left_image_files)
@@ -226,9 +222,6 @@ def algorith_2(start_pose:int = None, end_pose:int = None):
     trajectory = np.zeros((num_frames, 3, 4))
     trajectory[0] = T_tot[:3, :]
 
-    # Choose stereo matching algorithm
-    matcher_name = 'bm'
-
 
 
     for i in range(num_frames - 1):
@@ -241,22 +234,20 @@ def algorith_2(start_pose:int = None, end_pose:int = None):
         image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
         image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
         image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
-        sad_window = 6
-        num_disparities = sad_window * 16
-        block_size = 11
         
-        if matcher_name == 'bm':
-            matcher = cv2.StereoBM_create(numDisparities=num_disparities,
-                                            blockSize=block_size,
-                                            )
-            
-        elif matcher_name == 'sgbm':
-            matcher = cv2.StereoSGBM_create(numDisparities=num_disparities,
-                                            minDisparity=0,
-                                            blockSize=block_size,
-                                            P1 = 8 * 1 * block_size ** 2,
-                                            P2 = 32 * 1 * block_size ** 2,
-                                            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
             
         disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
         
@@ -274,7 +265,6 @@ def algorith_2(start_pose:int = None, end_pose:int = None):
         det = cv2.SIFT_create()
         kp0, des0 = det.detectAndCompute(image_left,None)
         kp1, des1 = det.detectAndCompute(image_plus1,None)
-
         
         # Get matches between features detected in the two images
         matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
@@ -411,7 +401,7 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_1(0,20)
+    computed_trajectory, mean_time, total_time = algorithm_2()
 
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory)

@@ -7,7 +7,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import json
-
+from utilities.readResults import displayResults
 
 def data_set_setup(sequence) -> tuple:
     """
@@ -940,7 +940,7 @@ def algorithm_6(start_pose:int = None, end_pose:int = None):
     return trajectory, mean_time, total_time
 
 
-def save_results(results, gt, mean_time, total_time, path):
+def save_results(results, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, path):
 
     results_writable = []
     for i in range(len(results)):
@@ -949,12 +949,28 @@ def save_results(results, gt, mean_time, total_time, path):
     gt_writable = []
     for i in range(len(gt)):
         gt_writable.append(list(np.ravel(gt[i]))) 
+
+    abserror_writable = []
+    for i in range(len(abserror)):
+        abserror_writable.append(list(np.ravel(abserror[i]))) 
+
+    relerror_writable = []
+    for i in range(len(relerror)):
+        relerror_writable.append(list(np.ravel(relerror[i]))) 
+        
+    angerror_writable = []
+    for i in range(len(angerror)):
+        angerror_writable.append(list(np.ravel(angerror[i]))) 
     
     data_to_write = {
+        "algorithm description": alg_des,
         "odometry" : results_writable,
         "ground truth": gt_writable,
+        "absolute error": abserror_writable,
+        "relative error": relerror_writable,
+        "angular heading error": angerror_writable,
         "mean time" : mean_time,
-        "total time" : total_time
+        "total time" : total_time,     
     }
 
     with open(path, "w") as outfile:
@@ -1000,13 +1016,75 @@ if __name__ == "__main__":
     zs = gt[:, 2, 3]
     ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
     ax.plot(xs, ys, zs, c='b')
+
+    # Choose Algorithm
+    description_1 = "Algorithm 1: SGBM + SIFT  + BF "
+    description_2 = "Algorithm 2: BM + SIFT + BF "
+    description_3 = "Algorithm 3: BM + SIFT + BF + Filter: Top 100 Matches "
+    description_4 = "Algorithm 4: BM + SIFT + BF + Filter: Lowe Ratio Test "
+    description_5 = "Algorithm 5: SGBM + SIFT + BF + Filter: Lowe Ratio Test "
+    description_6 = "Algorithm 6: BM + ORB + BF + Filter: Lowe Ratio Test"
+    description_7 = "Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test"
+
+    print("Menu: ")
+    print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
+    print(description_1)
+    print(description_2)
+    print(description_3)
+    print(description_4)
+    print(description_5)
+    print(description_6)
+    print(description_7)
+
+    alg_num = input("Enter Algorithm Number: ")
+
+    alg_num = int(alg_num)
+
+    match alg_num:
+        case 1:
+            alg = algorithm_1
+            alg_des = description_1
+            path = "./kittiDataSet/results/algorithm_1.json" 
+        case 2:
+            alg = algorithm_2
+            alg_des = description_2
+            path = "./kittiDataSet/results/algorithm_2.json"
+        case 3:
+            alg = algorithm_3
+            alg_des = description_3
+            path = "./kittiDataSet/results/algorithm_3.json"
+        case 4:
+            alg = algorithm_4
+            alg_des = description_4
+            path = "./kittiDataSet/results/algorithm_4.json"
+        case 5:
+            alg = algorithm_5
+            alg_des = description_5
+            path = "./kittiDataSet/results/algorithm_5.json"
+        case 6:
+            alg = algorithm_6
+            alg_des = description_6
+            path = "./kittiDataSet/results/algorithm_6.json"
+        case default:
+            alg = algorithm_1
+            alg_des = description_1
+            path = "./kittiDataSet/results/algorithm_1.json"
     
+    print("CHOSEN:")
+    print(alg_des)
+    start_pose = input("Enter Start Pose:")
+    start_pose = int(start_pose)
+    end_pose = input("Enter End Pose: ")
+    end_pose = int(end_pose)
+
+
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_6(start_pose= 0, end_pose=1800)
+    computed_trajectory, mean_time, total_time = alg(start_pose, end_pose)
 
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
-    
+
+    '''
     fig2 = plt.figure(figsize=(10,10))
     ax2 = fig2.add_subplot()
     plt.title("Absolute Error")
@@ -1030,10 +1108,17 @@ if __name__ == "__main__":
     plt.xlabel("Frame")
     plt.ylabel("Relative Heading Angle Error (degrees)")
     plt.waitforbuttonpress()
+    '''
 
     # Save results
-    path = "./kittiDataSet/results/algorithm_1.json"
-    save_results(computed_trajectory, gt, mean_time, total_time, path)
+    #path = "./kittiDataSet/results/algorithm_1.json"
+    #path = "./kittiDataSet/results/algorithm_56.json"
+    save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, path)
+    print('displaying...')
+    displayResults(path)
+    print('done')
+ 
+    
     
 
     

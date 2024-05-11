@@ -2,6 +2,11 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+"""
+Script to read results JSON files and display them
+"""
+
 path = "./kittiDataSet/results/test_output.json"
 
 if __name__ == "__main__":

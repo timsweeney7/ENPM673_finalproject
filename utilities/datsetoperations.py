@@ -3,6 +3,11 @@ import glob
 import re
 
 
+"""
+Script to match stereo images in the droneDataSet and move them to their own directory
+"""
+
+
 if __name__ == "__main__":
     leftPath = "./images/calibration/leftCal_test/"
     rightPath = "./images/calibration/rightCal_test/"

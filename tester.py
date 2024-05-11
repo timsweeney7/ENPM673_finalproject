@@ -218,10 +218,27 @@ def save_results(results, gt, mean_time, total_time, path):
         json.dump(data_to_write, outfile)
 
 def compute_error(gt,computed_trajectory):
+    gt = gt[:,:,3]
+    computed_trajectory = computed_trajectory[:,:,3]
     abserror = []
+    relerror = []
+    angerror = []
     for i in range(len(computed_trajectory)):
         abserror.append(abs(np.linalg.norm(gt[i]-computed_trajectory[i])))
-    return abserror
+    for j in range(1,len(computed_trajectory)-1):
+        relerror.append(abs(np.linalg.norm(abs(np.linalg.norm(gt[j]-gt[j+1]))-abs(np.linalg.norm(computed_trajectory[j]-computed_trajectory[j+1])))))
+        ba1 = gt[j-1] - gt[j]
+        bc1 = gt[j+1] - gt[j]
+        cosine_angle1 = np.dot(ba1, bc1) / (np.linalg.norm(ba1) * np.linalg.norm(bc1))
+        angle1 = np.arccos(cosine_angle1)
+
+        ba2 = computed_trajectory[j-1] - computed_trajectory[j]
+        bc2 = computed_trajectory[j+1] - computed_trajectory[j]
+        cosine_angle2 = np.dot(ba2, bc2) / (np.linalg.norm(ba2) * np.linalg.norm(bc2))
+        angle2 = np.arccos(cosine_angle2)
+
+        angerror.append(abs(np.degrees(angle1)-np.degrees(angle2)))
+    return abserror,relerror,angerror
 
 if __name__ == "__main__":
     
@@ -241,16 +258,33 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_1(0,200)
+    computed_trajectory, mean_time, total_time = algorithm_1(0,20)
 
     # Compute Error 
-    error = compute_error(gt, computed_trajectory)
+    abserror,relerror,angerror = compute_error(gt, computed_trajectory)
+    
     fig2 = plt.figure(figsize=(10,10))
     ax2 = fig2.add_subplot()
     plt.title("Absolute Error")
-    ax2.plot(range(len(error)),error)
+    ax2.plot(range(len(abserror)),abserror)
     plt.xlabel("Frame")
     plt.ylabel("Absolute Error (meters)")
+    plt.waitforbuttonpress()
+
+    fig3 = plt.figure(figsize=(10,10))
+    ax3 = fig3.add_subplot()
+    plt.title("Relative Error")
+    ax3.plot(range(len(relerror)),relerror)
+    plt.xlabel("Frame")
+    plt.ylabel("Relative Error (meters)")
+    plt.waitforbuttonpress()
+
+    fig4 = plt.figure(figsize=(10,10))
+    ax4 = fig4.add_subplot()
+    plt.title("Relative Heading Angle Error")
+    ax4.plot(range(len(angerror)),angerror)
+    plt.xlabel("Frame")
+    plt.ylabel("Relative Heading Angle Error (degrees)")
     plt.waitforbuttonpress()
 
     # Save results

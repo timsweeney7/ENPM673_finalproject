@@ -47,9 +47,9 @@ def data_set_setup(sequence) -> tuple:
 
 def algorithm_1(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -196,9 +196,9 @@ def algorithm_1(start_pose:int = None, end_pose:int = None):
 """ --- Replacing StereoSGBM with StereoBM --- """
 def algorithm_2(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -343,9 +343,9 @@ def algorithm_2(start_pose:int = None, end_pose:int = None):
 """ --- Only taking the top 100 matches for motion estimation ---"""
 def algorithm_3(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -494,9 +494,9 @@ def algorithm_3(start_pose:int = None, end_pose:int = None):
 """ ---         using StereoBM      ----  """
 def algorithm_4(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -645,9 +645,9 @@ def algorithm_4(start_pose:int = None, end_pose:int = None):
 """ ---         using StereoSGBM      ----"""
 def algorithm_5(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -792,9 +792,9 @@ def algorithm_5(start_pose:int = None, end_pose:int = None):
 """ ---         using StereoBM      ----  """
 def algorithm_6(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 
@@ -943,9 +943,9 @@ def algorithm_6(start_pose:int = None, end_pose:int = None):
 """ ---         using StereoSGBM      ----  """
 def algorithm_7(start_pose:int = None, end_pose:int = None):
     
-    if(end_pose == None):
+    if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
-    if(start_pose == None):
+    if(start_pose == None or start_pose<0):
         start_pose = 0
     num_frames = end_pose - start_pose
 

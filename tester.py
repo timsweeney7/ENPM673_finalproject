@@ -663,8 +663,8 @@ def save_results(results, gt, mean_time, total_time, path):
     with open(path, "w") as outfile:
         json.dump(data_to_write, outfile)
 
-def compute_error(gt,computed_trajectory):
-    gt = gt[:,:,3]
+def compute_error(gt,computed_trajectory,start_pose):
+    gt = gt[start_pose:,:,3]
     computed_trajectory = computed_trajectory[:,:,3]
     abserror = []
     relerror = []
@@ -691,7 +691,8 @@ if __name__ == "__main__":
     start_time = datetime.now()
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
-
+    start_pose = 950
+    end_pose  = 1000
     # Setup plot that will be used on each iteration of code
     fig = plt.figure(figsize=(14, 14))
     plt.title("Trajectory")
@@ -704,10 +705,10 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_4(start_pose= 0, end_pose=1000)
+    computed_trajectory, mean_time, total_time = algorithm_4(start_pose, end_pose)
 
     # Compute Error 
-    abserror,relerror,angerror = compute_error(gt, computed_trajectory)
+    abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
     
     fig2 = plt.figure(figsize=(10,10))
     ax2 = fig2.add_subplot()

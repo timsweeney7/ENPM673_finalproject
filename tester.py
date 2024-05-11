@@ -1105,6 +1105,8 @@ def save_results(results, gt, mean_time, total_time, path):
         json.dump(data_to_write, outfile)
 
 def compute_error(gt,computed_trajectory,start_pose):
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
     gt = gt[start_pose:,:,3]
     computed_trajectory = computed_trajectory[:,:,3]
     abserror = []

@@ -982,6 +982,7 @@ def algorithm_7(start_pose:int = None, end_pose:int = None):
         image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
         image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
         
+        
         matcher = cv2.StereoSGBM_create(numDisparities=80,
                                         minDisparity=3,
                                         blockSize=21,
@@ -1145,7 +1146,7 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorithm_7(start_pose= 0, end_pose=1800)
+    computed_trajectory, mean_time, total_time = algorithm_7(start_pose, end_pose)
 
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)

@@ -54,8 +54,9 @@ stereo = cv.StereoBM_create()
 
 cv.createTrackbar('minDisparity','disp',5,25,nothing)
 cv.createTrackbar('numDisparities','disp',2,17,nothing)
+cv.setTrackbarMin('numDisparities', 'disp', 1)
 cv.createTrackbar('disp12MaxDiff','disp',5,25,nothing)
-cv.createTrackbar('preFilterCap',5, 62, nothing)
+cv.createTrackbar('preFilterCap','disp', 5, 62, nothing)
 cv.createTrackbar('blockSize','disp',5,50,nothing)
 cv.createTrackbar('textureThreshold','disp',10,100,nothing)
 cv.createTrackbar('uniquenessRatio','disp',15,100,nothing)
@@ -117,7 +118,7 @@ while True:
         stereo.setMode(mode)
  
     # Calculating disparity using the StereoBM algorithm
-    disparity = stereo.compute(img1_rectified, img2_rectified)
+    disparity = stereo.compute(img1, img2)
 
     # Converting to float32 
     disparity = disparity.astype(np.float32)
@@ -131,7 +132,7 @@ while True:
     # Close window using esc key
     if cv.waitKey(1) == 27:
       break
-    cv.namedWindow("disparity", flags= cv.WINDOW_NORMAL)
+    #cv.namedWindow("disparity", flags= cv.WINDOW_NORMAL)
     #cv.imshow("disparity", disparity)
 
     

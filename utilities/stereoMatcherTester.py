@@ -1,76 +1,46 @@
 import cv2 as cv
 import numpy as np
-
-
-def drawEpipolarlines(img1, lines, pts1):
-    """
-    Given a list of points, draw them and the corresponding epi-line on an image
-    img1  - the image to draw on
-    lines - list of lines in (a,b,c) format corresponding to ax + by + c = 0
-    pts1  - list of points that index match lines index
-    """
-    r, c = img1.shape
-    img1 = cv.cvtColor(img1, cv.COLOR_GRAY2BGR)
-
-    for line, pt1 in zip(lines, pts1):
-
-        # get a random color
-        color = tuple(np.random.randint(0, 255, 3).tolist())
-
-
-        # select points on the left and right side of the image
-        # calculate associated y value
-        x0, y0 = map(int, [0, -line[2] / line[1]])
-        x1, y1 = map(int, [c, -(line[2] + line[0] * c) / line[1] ])
-
-        # Color the points
-        img1 = cv.line(img1, (x0, y0), (x1, y1), color, 1)
-        img1 = cv.circle(img1, tuple(pt1), 5, color, -1)
-
-    return img1
+import matplotlib.pyplot as plt
 
 
 
 path = "./kittiDataSet/sequences/00"
-image = "000950.png"
+image = "000000.png"
 
-img1 = cv.imread(f'{path}/image_0/{image}', cv.IMREAD_GRAYSCALE) #queryimage # left image
-#cv.namedWindow("img1", cv.WINDOW_NORMAL)
-#cv.imshow("img1", img1)
-img2 = cv.imread(f'{path}/image_0/{image}', cv.IMREAD_GRAYSCALE) #trainimage # right image
-#cv.namedWindow("img2", cv.WINDOW_NORMAL)
-#cv.imshow("img2",img2)
+img1 = cv.imread(f'{path}/image_0/{image}', cv.IMREAD_UNCHANGED) #queryimage # left image
+img2 = cv.imread(f'{path}/image_1/{image}', cv.IMREAD_UNCHANGED) #trainimage # right image
 
 
 def nothing(x):
     pass
 
 cv.namedWindow('disp', cv.WINDOW_NORMAL)
-cv.resizeWindow('disp',600,1200)
+cv.resizeWindow('disp',600,1300)
 
 # Creating an object of StereoBM algorithm
 stereo = cv.StereoBM_create()
-#stereo = cv.StereoSGBM.create()
+#stereo = cv.StereoSGBM.create(mode=cv.STEREO_SGBM_MODE_SGBM_3WAY)
 
-cv.createTrackbar('minDisparity','disp',5,25,nothing)
-cv.createTrackbar('numDisparities','disp',2,17,nothing)
+cv.createTrackbar('minDisparity','disp',0,25,nothing)
+cv.createTrackbar('numDisparities','disp',6,17,nothing)
 cv.setTrackbarMin('numDisparities', 'disp', 1)
-cv.createTrackbar('disp12MaxDiff','disp',5,25,nothing)
-cv.createTrackbar('preFilterCap','disp', 5, 62, nothing)
-cv.createTrackbar('blockSize','disp',5,50,nothing)
-cv.createTrackbar('textureThreshold','disp',10,100,nothing)
-cv.createTrackbar('uniquenessRatio','disp',15,100,nothing)
+cv.createTrackbar('disp12MaxDiff','disp',0,25,nothing)
+cv.createTrackbar('preFilterCap','disp', 1, 62, nothing)
+cv.setTrackbarMin('preFilterCap', 'disp', 1)
+cv.createTrackbar('blockSize','disp',11,50,nothing)
+cv.createTrackbar('textureThreshold','disp',0,100,nothing)
+cv.createTrackbar('uniquenessRatio','disp',0,100,nothing)
 cv.createTrackbar('speckleRange','disp',0,100,nothing)
-cv.createTrackbar('speckleWindowSize','disp',3,25,nothing)
+cv.createTrackbar('speckleWindowSize','disp',0,25,nothing)
 
 
 if type(stereo) == cv.StereoBM:
-    cv.createTrackbar('preFilterType','disp',1,1,nothing)
-    cv.createTrackbar('preFilterSize','disp',2,25,nothing)
+    cv.createTrackbar('preFilterType','disp',0,1,nothing)
+    cv.createTrackbar('preFilterSize','disp',0,25,nothing)
 
 else:
-    cv.createTrackbar('P1','disp', 0, 40, nothing)
-    cv.createTrackbar('P2','disp', 0, 40, nothing)
+    cv.createTrackbar('P1','disp', 8, 40, nothing)
+    cv.createTrackbar('P2','disp', 32, 40, nothing)
 
 
  
@@ -79,7 +49,7 @@ while True:
     
     # Updating the parameters based on the trackbar positions
     numDisparities = cv.getTrackbarPos('numDisparities','disp')*16
-    blockSize = cv.getTrackbarPos('blockSize','disp')*2 + 5
+    blockSize = cv.getTrackbarPos('blockSize','disp')*2+5
     preFilterCap = cv.getTrackbarPos('preFilterCap','disp')
     uniquenessRatio = cv.getTrackbarPos('uniquenessRatio','disp')
     speckleRange = cv.getTrackbarPos('speckleRange','disp')
@@ -92,8 +62,8 @@ while True:
         preFilterSize = cv.getTrackbarPos('preFilterSize','disp')*2 + 5
         textureThreshold = cv.getTrackbarPos('textureThreshold','disp')
     else:
-        P1 = cv.getTrackbarPos('P1','disp')*16
-        P2 = cv.getTrackbarPos('P2','disp')*32
+        P1 = cv.getTrackbarPos('P1','disp')*11**2
+        P2 = cv.getTrackbarPos('P2','disp')*11**2
         mode = cv.getTrackbarPos('mode','disp')
      
 
@@ -115,27 +85,21 @@ while True:
     else:
         stereo.setP1(P1)
         stereo.setP2(P2)
-        stereo.setMode(mode)
+        #stereo.setMode(mode)
  
     # Calculating disparity using the StereoBM algorithm
-    disparity = stereo.compute(img1, img2)
+    disparity = stereo.compute(img1, img2).astype(np.float32)/16
 
-    # Converting to float32 
-    disparity = disparity.astype(np.float32)
- 
-    # Scaling down the disparity values and normalizing them 
-    disparity = (disparity/16.0 - minDisparity)/numDisparities
+    disparity = cv.normalize(disparity, None, 0, 1.0, cv.NORM_MINMAX, dtype=cv.CV_32F)
  
     # Displaying the disparity map
-    cv.imshow("disp",disparity)
+    cv.imshow("disp", disparity)
  
     # Close window using esc key
     if cv.waitKey(1) == 27:
       break
-    #cv.namedWindow("disparity", flags= cv.WINDOW_NORMAL)
-    #cv.imshow("disparity", disparity)
 
-    
+
 print()
 print()
 
@@ -156,5 +120,3 @@ else:
     print(f'P1: {P1*16}')
     print(f'P2: {P2*32}')
     print(f'mode: {mode}')
-
-cv.waitKey()

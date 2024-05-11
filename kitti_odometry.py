@@ -500,7 +500,7 @@ if __name__ == "__main__":
     handler = Dataset_Handler('00')
 
     #cv2.imshow("image", handler.first_image_left)
-    """
+    
     h,w = handler.first_image_left.shape
 
     print("Computing disparity...")
@@ -508,8 +508,13 @@ if __name__ == "__main__":
                                   handler.first_image_right,
                                   matcher='sgbm',
                                   verbose=True)
-    #fig1, ax1 = plt.subplots()
-    #ax1.imshow(disp)
+    fig1, ax1 = plt.subplots()
+    ax1.imshow(disp)
+    plt.waitforbuttonpress()
+
+    disp_test = cv2.normalize(disp, None, 0, 1.0, cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    cv2.imshow("disp", disp_test)
+    cv2.waitKey()
     
     
     # print("Computing depth map")
@@ -518,12 +523,13 @@ if __name__ == "__main__":
     depth = calc_depth_map(disp, k_left, t_left, t_right)
     #print(np.shape(depth))
     depth_corrected = depth[depth == depth.max()] = 0
-    #plt.figure(figsize=(11,7))
-    #plt.imshow(depth)
+    plt.figure(figsize=(11,7))
+    plt.imshow(depth)
+    plt.waitforbuttonpress()
 
     #print("Displaying results")
     #plt.hist(np.ravel(depth))
 
-    """
-    visual_odometry(handler, subset=200, plot=True)
-    plt.waitforbuttonpress()
+    
+    #visual_odometry(handler, subset=200, plot=True)
+    #plt.waitforbuttonpress()

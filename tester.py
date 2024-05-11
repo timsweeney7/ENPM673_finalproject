@@ -45,7 +45,7 @@ def data_set_setup(sequence) -> tuple:
 
 
 
-def algorith_1(start_pose:int = None, end_pose:int = None):
+def algorithm_1(start_pose:int = None, end_pose:int = None):
     
     if(end_pose == None):
         end_pose = len(left_image_files)
@@ -217,6 +217,11 @@ def save_results(results, gt, mean_time, total_time, path):
     with open(path, "w") as outfile:
         json.dump(data_to_write, outfile)
 
+def compute_error(gt,computed_trajectory):
+    abserror = []
+    for i in range(len(computed_trajectory)):
+        abserror.append(abs(np.linalg.norm(gt[i]-computed_trajectory[i])))
+    return abserror
 
 if __name__ == "__main__":
     
@@ -226,6 +231,7 @@ if __name__ == "__main__":
 
     # Setup plot that will be used on each iteration of code
     fig = plt.figure(figsize=(14, 14))
+    plt.title("Trajectory")
     ax = fig.add_subplot(projection='3d')
     ax.view_init(elev=-20, azim=270)
     xs = gt[:, 0, 3]
@@ -235,10 +241,17 @@ if __name__ == "__main__":
     ax.plot(xs, ys, zs, c='b')
     
     # Run algorithm
-    computed_trajectory, mean_time, total_time = algorith_1()
+    computed_trajectory, mean_time, total_time = algorithm_1(0,200)
 
     # Compute Error 
-    #  error = compute_error(gt, computed_trajectory)
+    error = compute_error(gt, computed_trajectory)
+    fig2 = plt.figure(figsize=(10,10))
+    ax2 = fig2.add_subplot()
+    plt.title("Absolute Error")
+    ax2.plot(range(len(error)),error)
+    plt.xlabel("Frame")
+    plt.ylabel("Absolute Error (meters)")
+    plt.waitforbuttonpress()
 
     # Save results
     path = "./kittiDataSet/results/algorithm_1.json"

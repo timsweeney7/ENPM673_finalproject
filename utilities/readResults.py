@@ -8,7 +8,7 @@ import numpy as np
 Script to read results JSON files and display them
 """
 
-
+# funciton to be used
 def displayResults(path):
 
     with open(path, 'r') as openfile:
@@ -28,8 +28,6 @@ def displayResults(path):
     abserror = np.array(results["absolute error"])
     relerror = np.array(results["relative error"])
     angerror = np.array(results["angular heading error"])
-
-
 
 
     # Plot ground truth

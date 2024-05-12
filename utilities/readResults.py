@@ -3,12 +3,12 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
+# displays/saves data from json file
+# first argument: path
+# second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
+# thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
+# NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
 
-"""
-Script to read results JSON files and display them
-"""
-
-# funciton to be used
 def displayResults(path, display = 1, save = 0):
 
     subpath = path[:35]

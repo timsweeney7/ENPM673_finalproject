@@ -1321,6 +1321,15 @@ if __name__ == "__main__":
     description_7 = "Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test"
     description_9 = "Algorithm 9: BM + ORD + FLANN + Filter: Lowe Ratio Test"
 
+    p1 =  "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
+    p2 = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
+    p3 = "./kittiDataSet/results/algorithm_3/algorithm_3.json"
+    p4 = "./kittiDataSet/results/algorithm_4/algorithm_4.json"
+    p5 = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
+    p6 = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
+    p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
+    p9 = "./kittiDataSet/results/algorithm_9/algorithm_9.json"
+
     print("Menu: ")
     print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
     print(description_1)
@@ -1331,12 +1340,16 @@ if __name__ == "__main__":
     print(description_6)
     print(description_7)
     print(description_9)
+    print("Enter -1 to Automatically collect data from All algorithms")
 
     alg_num = input("Enter Algorithm Number: ")
 
     alg_num = int(alg_num)
 
+    auto = 0
     match alg_num:
+        case -1:
+            auto = 1
         case 1:
             alg = algorithm_1
             alg_des = description_1
@@ -1376,18 +1389,82 @@ if __name__ == "__main__":
     
     print("CHOSEN:")
     print(alg_des)
-    start_pose = input("Enter Start Pose:")
+
+    live_plot = input('Show live plot [0/1]: ')
+    live_plot = int(live_plot)
+
+    save_json_data = input('Save JSON Data: [0/1] - Needed ON to display/save end plots + summary: ')
+    save_json_data = int(save_json_data)
+
+    if save_json_data:
+        show_plots = input('Show All Plots: [0/1]: ')
+        show_plots = int(show_plots)
+        
+        save_plots = input('Save All Plots [0/1]: ')
+        save_plots = int(save_plots)
+    else:
+        show_plots = 0
+        save_plots = 0
+
+
+    start_pose = input("Enter Start Pose: ")
     start_pose = int(start_pose)
+
     end_pose = input("Enter End Pose: ")
     end_pose = int(end_pose)
+    
 
 
-    # Run algorithm
-    # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
-    computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, 0)
 
-    # Compute Error 
-    abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
+    
+    algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_9]
+    alg_descrps = [description_1, description_2, description_3, description_4, description_5, description_6, description_7, description_9]
+    alg_paths = [p1,p2,p3,p4,p5,p6,p7,p9]
+
+    # automatically loops through all algorithms for data collection
+    if auto:
+        print('BEGINNING AUTOMATIC DATA COLLECTION OF ALL ALGORITHMS')
+        print('--WILL NOT DISPLAY ANY PLOTS, BUT WILL SAVE ALL DATA [JSON, PLOTS]--')
+        for i in len(algs):
+            alg = algs[i]
+            alg_des = alg_descrps[i]
+            path = alg_paths[i] 
+            
+            # Run algorithm
+            # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
+            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0)
+            
+            # Compute Error 
+            abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
+
+            # Save/Overwrite result data
+            save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
+
+            # display/save figs + summary
+            # first argument: path
+            # second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
+            # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
+            # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
+
+            displayResults(path, display = 0 , save = 1)
+        
+        print('AUTOMATIC DATA COLLECTION FINISHED')
+    else:
+        computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot)
+        abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
+        plt.waitforbuttonpress()
+        if save_json_data:
+            plt.close()
+            save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
+            displayResults(path, show_plots, save_plots)
+    
+    
+    
+    print('Finished')
+
+
+    
+    
 
     
 
@@ -1420,14 +1497,14 @@ if __name__ == "__main__":
     # Save results
     #path = "./kittiDataSet/results/algorithm_1.json"
     #path = "./kittiDataSet/results/algorithm_56.json"
-    save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
+    #save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
 
     # first argument: path
     # second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
     # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
     # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
 
-    displayResults(path, 0, 1)
+    #displayResults(path, 0, 1)
 
 
 

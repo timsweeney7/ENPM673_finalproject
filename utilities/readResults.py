@@ -14,9 +14,13 @@ def displayResults(path):
     with open(path, 'r') as openfile:
         results = json.load(openfile)
     
+    print("==================================\nSUMMARY OF RESULTS")
     print(f'Description: \n{results["algorithm description"]}')
-    print(f'Mean time: {results["mean time"]}')
-    print(f'Total time: {results["total time"]}')
+    print(f'Mean time [s]: {results["mean time"]}')
+    print(f'Total time [s]: {results["total time"]}')
+    print(f'Start Pose [frame]: {results["start pose"]}')
+    print(f'End Pose [frame]: {results["end pose"]}')
+    
 
     # reading ground truth and estimated trajectory data
     odometery = np.array(results["odometry"])
@@ -28,6 +32,11 @@ def displayResults(path):
     abserror = np.array(results["absolute error"])
     relerror = np.array(results["relative error"])
     angerror = np.array(results["angular heading error"])
+
+    print("Mean Abolute Error [m]: ", np.mean(abserror))
+    print("Mean Relative Error [m]: ", np.mean(relerror))
+    print("Mean Relative Angle Heading Error [deg]: ", np.mean(angerror))
+
 
 
     # Plot ground truth
@@ -82,7 +91,8 @@ def displayResults(path):
 # to call this script alone, uncomment function call and define path
 def main():
 
-    #displayResults(path)
+    path = "./kittiDataSet/results/algorithm_6.json"
+    displayResults(path)
     return 0
 
 

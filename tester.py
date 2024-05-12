@@ -1159,7 +1159,7 @@ def algorithm_9(start_pose:int = None, end_pose:int = None):
         # Get matches between features detected in the two images
         FLANN_INDEX_KDTREE = 0
         index_parameter = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-        search_parameter = dict(checks = 50)
+        search_parameter = dict(checks = 20)
         matcher = cv2.FlannBasedMatcher(index_parameter, search_parameter)
         matches = matcher.knnMatch(np.asarray(des0, np.float32), np.asarray(des1, np.float32), k=2)
         #matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
@@ -1238,7 +1238,7 @@ def algorithm_9(start_pose:int = None, end_pose:int = None):
     return trajectory, mean_time, total_time
 
 
-def save_results(results, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, path):
+def save_results(results, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path):
 
     results_writable = []
     for i in range(len(results)):
@@ -1268,7 +1268,9 @@ def save_results(results, gt, mean_time, total_time, abserror, relerror, angerro
         "relative error": relerror_writable,
         "angular heading error": angerror_writable,
         "mean time" : mean_time,
-        "total time" : total_time,     
+        "total time" : total_time,  
+        "start pose" : start_pose,
+        "end pose"   : end_pose,
     }
 
     with open(path, "w") as outfile:
@@ -1394,6 +1396,8 @@ if __name__ == "__main__":
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
 
+    
+
     '''
     fig2 = plt.figure(figsize=(10,10))
     ax2 = fig2.add_subplot()
@@ -1423,10 +1427,9 @@ if __name__ == "__main__":
     # Save results
     #path = "./kittiDataSet/results/algorithm_1.json"
     #path = "./kittiDataSet/results/algorithm_56.json"
-    save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, path)
-    print('displaying...')
+    save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
     displayResults(path)
-    print('done')
+
 
 
 

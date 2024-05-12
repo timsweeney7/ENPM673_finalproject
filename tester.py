@@ -45,7 +45,7 @@ def data_set_setup(sequence) -> tuple:
 
 
 
-def algorithm_1(start_pose:int = None, end_pose:int = None):
+def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -183,18 +183,17 @@ def algorithm_1(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 
 """ --- Replacing StereoSGBM with StereoBM --- """
-def algorithm_2(start_pose:int = None, end_pose:int = None):
+def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -330,18 +329,17 @@ def algorithm_2(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 
 """ --- Only taking the top 100 matches for motion estimation ---"""
-def algorithm_3(start_pose:int = None, end_pose:int = None):
+def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -480,19 +478,18 @@ def algorithm_3(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 
 """ --- using Lowe's Ratio test to determine good matches --- """
 """ ---         using StereoBM      ----  """
-def algorithm_4(start_pose:int = None, end_pose:int = None):
+def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -632,18 +629,17 @@ def algorithm_4(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 """ --- using Lowe's Ratio test to determine good matches --- """
 """ ---         using StereoSGBM      ----"""
-def algorithm_5(start_pose:int = None, end_pose:int = None):
+def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -778,19 +774,18 @@ def algorithm_5(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 
 """ --- Using ORB for feature detection instead of SIFT  --- """
 """ ---         using StereoBM      ----  """
-def algorithm_6(start_pose:int = None, end_pose:int = None):
+def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -930,18 +925,17 @@ def algorithm_6(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 """ --- Using ORB for feature detection instead of SIFT  --- """
 """ ---         using StereoSGBM      ----  """
-def algorithm_7(start_pose:int = None, end_pose:int = None):
+def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -1075,17 +1069,16 @@ def algorithm_7(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 # orb, bm, flann, lowe ration test
-def algorithm_9(start_pose:int = None, end_pose:int = None):
+def algorithm_9(start_pose:int = None, end_pose:int = None, live_plot = 1):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -1228,13 +1221,12 @@ def algorithm_9(start_pose:int = None, end_pose:int = None):
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
-        plt.plot(xs, ys, zs, c='r')
-        plt.pause(1e-32)
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
 
     # end of algorithm, return results
     print(f"Program execution time: {total_time}s")
-    plt.plot(xs, ys, zs, c='r')
-    plt.waitforbuttonpress()
     return trajectory, mean_time, total_time
 
 
@@ -1348,39 +1340,39 @@ if __name__ == "__main__":
         case 1:
             alg = algorithm_1
             alg_des = description_1
-            path = "./kittiDataSet/results/algorithm_1.json" 
+            path = "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
         case 2:
             alg = algorithm_2
             alg_des = description_2
-            path = "./kittiDataSet/results/algorithm_2.json"
+            path = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
         case 3:
             alg = algorithm_3
             alg_des = description_3
-            path = "./kittiDataSet/results/algorithm_3.json"
+            path = "./kittiDataSet/results/algorithm_3/algorithm_3.json"
         case 4:
             alg = algorithm_4
             alg_des = description_4
-            path = "./kittiDataSet/results/algorithm_4.json"
+            path = "./kittiDataSet/results/algorithm_4/algorithm_4.json"
         case 5:
             alg = algorithm_5
             alg_des = description_5
-            path = "./kittiDataSet/results/algorithm_5.json"
+            path = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
         case 6:
             alg = algorithm_6
             alg_des = description_6
-            path = "./kittiDataSet/results/algorithm_6.json"
+            path = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
         case 7:
             alg = algorithm_7
             alg_des = description_7
-            path = "./kittiDataSet/results/algorithm_7.json"
+            path = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
         case 9:
             alg = algorithm_9
             alg_des = description_9
-            path = "./kittiDataSet/results/algorithm_9.json"
+            path = "./kittiDataSet/results/algorithm_9/algorithm_9.json"
         case default:
             alg = algorithm_1
             alg_des = description_1
-            path = "./kittiDataSet/results/algorithm_1.json"
+            path = "./kittiDataSet/results/algorithm_1/algorithm_1.json"
     
     print("CHOSEN:")
     print(alg_des)
@@ -1391,7 +1383,8 @@ if __name__ == "__main__":
 
 
     # Run algorithm
-    computed_trajectory, mean_time, total_time = alg(start_pose, end_pose)
+    # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
+    computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, 0)
 
     # Compute Error 
     abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
@@ -1428,13 +1421,19 @@ if __name__ == "__main__":
     #path = "./kittiDataSet/results/algorithm_1.json"
     #path = "./kittiDataSet/results/algorithm_56.json"
     save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
-    displayResults(path)
+
+    # first argument: path
+    # second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
+    # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
+    # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
+
+    displayResults(path, 0, 1)
 
 
 
+def chicken():
+    print('egg')
 
-
- 
     
     
 

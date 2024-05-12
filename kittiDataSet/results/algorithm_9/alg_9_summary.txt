@@ -1,0 +1,12 @@
+
+==================================
+SUMMARY OF RESULTS
+==================================
+Description: Algorithm 9: BM + ORD + FLANN + Filter: Lowe Ratio Test
+Mean time [s]: 0.08006260130140516
+Total time [s]: 0.7205634117126465
+Start Pose [frame]: 0
+End Pose [frame]: 10
+Mean Abolute Error [m]: 0.6879580193157796
+Mean Relative Error [m]: 0.11750162296470082
+Mean Relative Angle Heading Error [deg]: 1.7406663707457533

@@ -1430,7 +1430,7 @@ if __name__ == "__main__":
     end_pose = int(end_pose)
 
     gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 if never): ")
-    gtInt = int(10*float(gtInt))
+    gtInt = int(frame_rate*float(gtInt))
     
     
     algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_8]

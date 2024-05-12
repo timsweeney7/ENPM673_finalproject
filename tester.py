@@ -45,7 +45,7 @@ def data_set_setup(sequence) -> tuple:
 
 
 
-def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -169,7 +169,9 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-            
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
         
@@ -179,7 +181,8 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1):
         total_time += computation_time
         mean_time = total_time/(i+1)
 
-        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}')
+        
         xs = trajectory[:i+2, 0, 3]
         ys = trajectory[:i+2, 1, 3]
         zs = trajectory[:i+2, 2, 3]
@@ -193,7 +196,7 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 
 """ --- Replacing StereoSGBM with StereoBM --- """
-def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -315,6 +318,8 @@ def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -339,7 +344,7 @@ def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 
 """ --- Only taking the top 100 matches for motion estimation ---"""
-def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -464,6 +469,8 @@ def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -489,7 +496,7 @@ def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 """ --- using Lowe's Ratio test to determine good matches --- """
 """ ---         using StereoBM      ----  """
-def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -615,6 +622,8 @@ def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -639,7 +648,7 @@ def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 """ --- using Lowe's Ratio test to determine good matches --- """
 """ ---         using StereoSGBM      ----"""
-def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -760,6 +769,8 @@ def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -785,7 +796,7 @@ def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 """ --- Using ORB for feature detection instead of SIFT  --- """
 """ ---         using StereoBM      ----  """
-def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -911,6 +922,8 @@ def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -935,7 +948,7 @@ def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1):
 
 """ --- Using ORB for feature detection instead of SIFT  --- """
 """ ---         using StereoSGBM      ----  """
-def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -1055,6 +1068,8 @@ def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -1078,7 +1093,7 @@ def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1):
     return trajectory, mean_time, total_time
 
 # orb, bm, flann, lowe ration test
-def algorithm_9(start_pose:int = None, end_pose:int = None, live_plot = 1):
+def algorithm_8(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -1207,6 +1222,8 @@ def algorithm_9(start_pose:int = None, end_pose:int = None, live_plot = 1):
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
+        if i > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
         trajectory[i+1, :, :] = T_tot[:3, :]
@@ -1298,8 +1315,6 @@ if __name__ == "__main__":
     start_time = datetime.now()
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
-    start_pose = 950
-    end_pose  = 1000
     # Setup plot that will be used on each iteration of code
     fig = plt.figure(figsize=(14, 14))
     plt.title("Trajectory")
@@ -1319,7 +1334,7 @@ if __name__ == "__main__":
     description_5 = "Algorithm 5: SGBM + SIFT + BF + Filter: Lowe Ratio Test "
     description_6 = "Algorithm 6: BM + ORB + BF + Filter: Lowe Ratio Test"
     description_7 = "Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test"
-    description_9 = "Algorithm 9: BM + ORD + FLANN + Filter: Lowe Ratio Test"
+    description_8 = "Algorithm 8: BM + ORD + FLANN + Filter: Lowe Ratio Test"
 
     p1 =  "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
     p2 = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
@@ -1328,7 +1343,7 @@ if __name__ == "__main__":
     p5 = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
     p6 = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
     p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
-    p9 = "./kittiDataSet/results/algorithm_9/algorithm_9.json"
+    p8 = "./kittiDataSet/results/algorithm_9/algorithm_8.json"
 
     print("Menu: ")
     print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
@@ -1339,7 +1354,7 @@ if __name__ == "__main__":
     print(description_5)
     print(description_6)
     print(description_7)
-    print(description_9)
+    print(description_8)
     print("Enter -1 to Automatically collect data from All algorithms")
 
     alg_num = input("Enter Algorithm Number: ")
@@ -1378,10 +1393,10 @@ if __name__ == "__main__":
             alg = algorithm_7
             alg_des = description_7
             path = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
-        case 9:
-            alg = algorithm_9
-            alg_des = description_9
-            path = "./kittiDataSet/results/algorithm_9/algorithm_9.json"
+        case 8:
+            alg = algorithm_8
+            alg_des = description_8
+            path = "./kittiDataSet/results/algorithm_9/algorithm_8.json"
         case default:
             alg = algorithm_1
             alg_des = description_1
@@ -1412,14 +1427,14 @@ if __name__ == "__main__":
 
     end_pose = input("Enter End Pose: ")
     end_pose = int(end_pose)
+
+    gtInt = input("Enter frequency (in frames) to inject ground truth data (Enter value < 1 if never): ")
+    gtInt = int(gtInt)
     
-
-
-
     
-    algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_9]
-    alg_descrps = [description_1, description_2, description_3, description_4, description_5, description_6, description_7, description_9]
-    alg_paths = [p1,p2,p3,p4,p5,p6,p7,p9]
+    algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_8]
+    alg_descrps = [description_1, description_2, description_3, description_4, description_5, description_6, description_7, description_8]
+    alg_paths = [p1,p2,p3,p4,p5,p6,p7,p8]
 
     # automatically loops through all algorithms for data collection
     if auto:
@@ -1432,7 +1447,7 @@ if __name__ == "__main__":
             
             # Run algorithm
             # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
-            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0)
+            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0, gtInt = 0)
             
             # Compute Error 
             abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
@@ -1450,7 +1465,7 @@ if __name__ == "__main__":
         
         print('AUTOMATIC DATA COLLECTION FINISHED')
     else:
-        computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot)
+        computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot, gtInt)
         abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
         plt.waitforbuttonpress()
         if save_json_data:

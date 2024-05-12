@@ -1313,6 +1313,7 @@ def compute_error(gt,computed_trajectory,start_pose):
 if __name__ == "__main__":
     
     start_time = datetime.now()
+    frame_rate = 10 #Hz
     sequence = "00"
     left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
     # Setup plot that will be used on each iteration of code
@@ -1428,8 +1429,8 @@ if __name__ == "__main__":
     end_pose = input("Enter End Pose: ")
     end_pose = int(end_pose)
 
-    gtInt = input("Enter frequency (in frames) to inject ground truth data (Enter value < 1 if never): ")
-    gtInt = int(gtInt)
+    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 if never): ")
+    gtInt = int(10*float(gtInt))
     
     
     algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_8]

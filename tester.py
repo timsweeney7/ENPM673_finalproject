@@ -1336,6 +1336,7 @@ if __name__ == "__main__":
     description_6 = "Algorithm 6: BM + ORB + BF + Filter: Lowe Ratio Test"
     description_7 = "Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test"
     description_8 = "Algorithm 8: BM + ORD + FLANN + Filter: Lowe Ratio Test"
+    
 
     p1 =  "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
     p2 = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
@@ -1345,6 +1346,7 @@ if __name__ == "__main__":
     p6 = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
     p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
     p8 = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
+
 
     print("Menu: ")
     print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
@@ -1361,6 +1363,7 @@ if __name__ == "__main__":
     alg_num = input("Enter Algorithm Number: ")
 
     alg_num = int(alg_num)
+
 
     auto = 0
     match alg_num:
@@ -1406,6 +1409,12 @@ if __name__ == "__main__":
     
     print("CHOSEN:")
     print(alg_des)
+
+    if alg_num != -1:
+        temp = input('Temporary Run [0/1] - Will override path location to save data in separate temporary folder under algorithm folder: ')
+        temp = int(temp)
+        if temp:
+            path = path[:35] + '/temp/temp.json'
 
     live_plot = input('Show live plot [0/1]: ')
     live_plot = int(live_plot)
@@ -1463,7 +1472,7 @@ if __name__ == "__main__":
             # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
             # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
 
-            displayResults(path, display = 0 , save = 1)
+            displayResults(path, display = 0 , save = 1, temp=0)
         
         print('AUTOMATIC DATA COLLECTION FINISHED')
     else:
@@ -1473,60 +1482,12 @@ if __name__ == "__main__":
         if save_json_data:
             plt.close()
             save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
-            displayResults(path, show_plots, save_plots)
+            displayResults(path, show_plots, save_plots, temp)
     
     
     
     print('Finished')
 
-
-    
-    
-
-    
-
-    '''
-    fig2 = plt.figure(figsize=(10,10))
-    ax2 = fig2.add_subplot()
-    plt.title("Absolute Error")
-    ax2.plot(range(len(abserror)),abserror)
-    plt.xlabel("Frame")
-    plt.ylabel("Absolute Error (meters)")
-    plt.waitforbuttonpress()
-
-    fig3 = plt.figure(figsize=(10,10))
-    ax3 = fig3.add_subplot()
-    plt.title("Relative Error")
-    ax3.plot(range(len(relerror)),relerror)
-    plt.xlabel("Frame")
-    plt.ylabel("Relative Error (meters)")
-    plt.waitforbuttonpress()
-
-    fig4 = plt.figure(figsize=(10,10))
-    ax4 = fig4.add_subplot()
-    plt.title("Relative Heading Angle Error")
-    ax4.plot(range(len(angerror)),angerror)
-    plt.xlabel("Frame")
-    plt.ylabel("Relative Heading Angle Error (degrees)")
-    plt.waitforbuttonpress()
-    '''
-
-    # Save results
-    #path = "./kittiDataSet/results/algorithm_1.json"
-    #path = "./kittiDataSet/results/algorithm_56.json"
-    #save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
-
-    # first argument: path
-    # second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
-    # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
-    # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
-
-    #displayResults(path, 0, 1)
-
-
-
-def chicken():
-    print('egg')
 
     
     

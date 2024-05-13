@@ -3,10 +3,10 @@
 SUMMARY OF RESULTS
 ==================================
 Description: Algorithm 3: BM + SIFT + BF + Filter: Top 100 Matches 
-Mean time [s]: 0.17472860687657407
-Total time [s]: 3.3198435306549072
+Mean time [s]: 0.1578430704858197
+Total time [s]: 315.52829790115356
 Start Pose [frame]: 0
-End Pose [frame]: 20
-Mean Abolute Error [m]: 1.0761534506349506
-Mean Relative Error [m]: 0.06940694825820251
-Mean Relative Angle Heading Error [deg]: 0.5460591005209225
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 32.070014950405444
+Mean Relative Error [m]: 0.019341729805028702
+Mean Relative Angle Heading Error [deg]: 1.2185413161036167

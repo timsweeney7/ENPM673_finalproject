@@ -3,10 +3,10 @@
 SUMMARY OF RESULTS
 ==================================
 Description: Algorithm 2: BM + SIFT + BF 
-Mean time [s]: 0.21174226309123792
-Total time [s]: 4.0231029987335205
+Mean time [s]: 0.17934730543143276
+Total time [s]: 358.5152635574341
 Start Pose [frame]: 0
-End Pose [frame]: 20
-Mean Abolute Error [m]: 0.9280320367979286
-Mean Relative Error [m]: 0.17910629832495725
-Mean Relative Angle Heading Error [deg]: 2.3314912946249
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 194.16959607606515
+Mean Relative Error [m]: 0.1650029802261357
+Mean Relative Angle Heading Error [deg]: 9.946688756814712

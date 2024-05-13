@@ -3,10 +3,10 @@
 SUMMARY OF RESULTS
 ==================================
 Description: Algorithm 4: BM + SIFT + BF + Filter: Lowe Ratio Test 
-Mean time [s]: 0.18513602680630153
-Total time [s]: 1.6662242412567139
+Mean time [s]: 0.16926031258178986
+Total time [s]: 338.3513648509979
 Start Pose [frame]: 0
-End Pose [frame]: 10
-Mean Abolute Error [m]: 0.698477689249453
-Mean Relative Error [m]: 0.12010688095251902
-Mean Relative Angle Heading Error [deg]: 0.5634559251589799
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 12.981458687728228
+Mean Relative Error [m]: 0.012880838922543329
+Mean Relative Angle Heading Error [deg]: 0.8135088155021468

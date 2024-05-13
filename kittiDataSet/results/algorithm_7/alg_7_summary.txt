@@ -1,0 +1,12 @@
+
+==================================
+SUMMARY OF RESULTS
+==================================
+Description: Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test
+Mean time [s]: 0.05226091589553169
+Total time [s]: 104.46957087516785
+Start Pose [frame]: 0
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 54.08065431445885
+Mean Relative Error [m]: 0.031202040772977377
+Mean Relative Angle Heading Error [deg]: 2.7293271680787816

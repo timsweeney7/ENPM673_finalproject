@@ -1,0 +1,12 @@
+
+==================================
+SUMMARY OF RESULTS
+==================================
+Description: Algorithm 6: BM + ORB + BF + Filter: Lowe Ratio Test
+Mean time [s]: 0.0382923878330538
+Total time [s]: 76.54648327827454
+Start Pose [frame]: 0
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 5.221320180167919
+Mean Relative Error [m]: 0.05171673131369338
+Mean Relative Angle Heading Error [deg]: 2.779058483415367

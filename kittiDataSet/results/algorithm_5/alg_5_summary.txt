@@ -1,0 +1,12 @@
+
+==================================
+SUMMARY OF RESULTS
+==================================
+Description: Algorithm 5: SGBM + SIFT + BF + Filter: Lowe Ratio Test 
+Mean time [s]: 0.1704055692864514
+Total time [s]: 340.64073300361633
+Start Pose [frame]: 0
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 10.530562270646838
+Mean Relative Error [m]: 0.013241630098652807
+Mean Relative Angle Heading Error [deg]: 1.0694334418734481

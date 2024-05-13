@@ -3,10 +3,10 @@
 SUMMARY OF RESULTS
 ==================================
 Description: Algorithm 1: SGBM + SIFT  + BF 
-Mean time [s]: 0.20607670148213705
-Total time [s]: 1.8546903133392334
-Start Pose [frame]: 10
-End Pose [frame]: 20
-Mean Abolute Error [m]: 0.14525964463103375
-Mean Relative Error [m]: 0.015447349692737547
-Mean Relative Angle Heading Error [deg]: 0.18143624184676455
+Mean time [s]: 0.21391586591864659
+Total time [s]: 427.6178159713745
+Start Pose [frame]: 0
+End Pose [frame]: 2000
+Mean Abolute Error [m]: 69.9795712056578
+Mean Relative Error [m]: 0.06170316000076437
+Mean Relative Angle Heading Error [deg]: 5.433583964206652

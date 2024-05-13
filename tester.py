@@ -169,7 +169,7 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
 
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -318,7 +318,7 @@ def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -469,7 +469,7 @@ def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -622,7 +622,7 @@ def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -769,7 +769,7 @@ def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -922,7 +922,7 @@ def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -1068,7 +1068,7 @@ def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -1222,7 +1222,7 @@ def algorithm_8(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
         Tmat[:3, 3] = tvec.T
         
         T_tot = T_tot @ np.linalg.inv(Tmat)
-        if i > 0 and (i+1)%gtInt==0:
+        if gtInt > 0 and (i+1)%gtInt==0:
             T_tot = gt[start_pose+i+1]
             
         # Place pose estimate in i+1 to correspond to the second image, which we estimated for
@@ -1440,7 +1440,7 @@ if __name__ == "__main__":
     end_pose = int(end_pose)
 
     gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 but > 0 if never): ")
-    gtInt = int(frame_rate*float(gtInt))
+    gtInt = int(round(frame_rate*float(gtInt)))
     
     
     algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_8]

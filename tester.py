@@ -1344,7 +1344,7 @@ if __name__ == "__main__":
     p5 = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
     p6 = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
     p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
-    p8 = "./kittiDataSet/results/algorithm_9/algorithm_8.json"
+    p8 = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
 
     print("Menu: ")
     print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
@@ -1366,6 +1366,7 @@ if __name__ == "__main__":
     match alg_num:
         case -1:
             auto = 1
+            alg_des = 'AUTO-ALL'
         case 1:
             alg = algorithm_1
             alg_des = description_1
@@ -1397,7 +1398,7 @@ if __name__ == "__main__":
         case 8:
             alg = algorithm_8
             alg_des = description_8
-            path = "./kittiDataSet/results/algorithm_9/algorithm_8.json"
+            path = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
         case default:
             alg = algorithm_1
             alg_des = description_1
@@ -1429,7 +1430,7 @@ if __name__ == "__main__":
     end_pose = input("Enter End Pose: ")
     end_pose = int(end_pose)
 
-    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 if never): ")
+    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 but > 0 if never): ")
     gtInt = int(frame_rate*float(gtInt))
     
     
@@ -1441,14 +1442,14 @@ if __name__ == "__main__":
     if auto:
         print('BEGINNING AUTOMATIC DATA COLLECTION OF ALL ALGORITHMS')
         print('--WILL NOT DISPLAY ANY PLOTS, BUT WILL SAVE ALL DATA [JSON, PLOTS]--')
-        for i in len(algs):
+        for i in range(len(algs)):
             alg = algs[i]
             alg_des = alg_descrps[i]
             path = alg_paths[i] 
             
             # Run algorithm
             # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
-            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0, gtInt = 0)
+            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0, gtInt = 0.001)
             
             # Compute Error 
             abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)

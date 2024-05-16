@@ -1,257 +1,1520 @@
-"""
-Zed 2i baseline is 120mm
-"""
-
-import cv2 as cv
+import cv2
+import datetime
+import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import pyplot as plt
-import random
-import glob
-import ast
-from datetime import datetime
-import json
 import os
+import pandas as pd
+from datetime import datetime
+import time
+import json
+from utilities.readResults import displayResults
 
-
-def calibrate_camera(path):
-    CHESSBOARD = (9,6)
-    criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-    # Creating vector to store vectors of 3D points for each chessrboard image
-    objpoints = []
-    # Creating vector to store vectors of 2D points for each chessboard image
-    imgpoints = []
-
-    # Defining the world coordinates for 3D points
-    objp = np.zeros((1, CHESSBOARD[0] * CHESSBOARD[1], 3), np.float32)
-    # Change from zeros to list of (x, y, z) coordinates for chessboard corners in chessboard plane ex: (1, 4, 0)
-    objp[0,:,:2] = np.mgrid[0:CHESSBOARD[0], 0:CHESSBOARD[1]].T.reshape(-1, 2)
-
-    # Extracting path of individual image stored in a given directory
-    images = glob.glob(path)
-    for fname in images:
-        start = datetime.now()
-        img = cv.imread(fname)
-        gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-        # Find the chess board corners
-        # If desired number of corners are found in the image then ret = true
-        ret, corners = cv.findChessboardCorners(gray, CHESSBOARD, cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_FAST_CHECK + cv.CALIB_CB_NORMALIZE_IMAGE)
-        end = datetime.now()
-        """
-        If desired number of corner are detected,
-        we refine the pixel coordinates and display
-        them on the images of chess board
-        """
-        print(f'{fname}: {end-start}')
-        if ret == True:
-            objpoints.append(objp)
-            # refining pixel coordinates for given 2d points.
-            corners2 = cv.cornerSubPix(image= gray, corners= corners, winSize=(11,11), zeroZone= (-1,-1), criteria= criteria)
-            imgpoints.append(corners2)
-        if ret == False:
-            os.remove(fname)
-
+def data_set_setup(sequence) -> tuple:
     """
-    Performing camera calibration by passing the value of known 3D points (objpoints)
-    and corresponding pixel coordinates of the detected corners (imgpoints)
+    return:  (left_images_list, right_images_list, P0, P1, groundTruth, times)
     """
-    h,w = img.shape[:2]
-    ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, (w,h), None, None)
-    newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
 
-    """ Calculate the reprojection error """
-    total_error = 0 
-    error_list = []
-    for i in range(len(objpoints)):
-        imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], mtx, dist)
-        error = cv.norm(imgpoints[i], imgpoints2, cv.NORM_L2)
-        error_list.append(error)
-        total_error += error
-    print(f"Average error: {total_error/len(objpoints)}")
+    seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+    poses_dir = f'./kittiDataSet/poses/{sequence}.txt'
+    poses = pd.read_csv(poses_dir, delimiter=' ', header=None)
 
-    plt.plot(error_list)
-    plt.show()
+    # Get names of files to iterate through
+    left_image_files = os.listdir(seq_dir + 'image_0')
+    left_image_files.sort()
+    right_image_files = os.listdir(seq_dir + 'image_1')
+    right_image_files.sort()
 
-    return mtx, dist, newcameramtx
-   
+     # Get calibration details for scene
+    calib = pd.read_csv(seq_dir + 'calib.txt', delimiter=' ', header=None, index_col=0)
+    P0 = np.array(calib.loc['P0:']).reshape((3,4)) # left 
+    P1 = np.array(calib.loc['P1:']).reshape((3,4)) # right
+
+    # Get times and ground truth poses
+    times = np.array(pd.read_csv(seq_dir + 'times.txt', delimiter=' ', header=None))
+    gt = np.zeros((len(poses), 3, 4))
+    for i in range(len(poses)):
+        gt[i] = np.array(poses.iloc[i]).reshape((3, 4))
+
+    # get first images --- Currently not used
+    first_image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[0], cv2.IMREAD_UNCHANGED)
+    first_image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[0], cv2.IMREAD_UNCHANGED)
+    imheight = first_image_left.shape[0]
+    imwidth = first_image_left.shape[1]
+
+    return (left_image_files, right_image_files, P0, P1, gt, times)
 
 
-def extractParams(json_file):
-    with open(json_file, 'r') as file:
-        data = json.load(file)
 
-    camMatrix = data["cameraMatrix"]
-    camMatrix = np.reshape(camMatrix, (3,3))
+def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
 
-    distortionCoef = data["distortionCoef"]
-    distortionCoef = np.array(distortionCoef)
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
 
-    newCamMatrix = data["newCameraMatrix"]
-    newCamMatrix = np.array(newCamMatrix)
+    # statistics for algo execution
+    total_time = 0
 
-    return camMatrix, distortionCoef, newCamMatrix
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    #f = k_left[0][0]            # focal length of x axis for left camera
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
 
-def drawlines(img, lines, pts):
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+    # Choose stereo matching algorithm
+    matcher_name = 'sgbm'
+
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        sad_window = 6
+        num_disparities = sad_window * 16
+        block_size = 11
+            
+        
+        matcher = cv2.StereoSGBM_create(numDisparities=num_disparities,
+                                        minDisparity=0,
+                                        blockSize=block_size,
+                                        P1 = 8 * 1 * block_size ** 2,
+                                        P2 = 32 * 1 * block_size ** 2,
+                                        mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+            
+
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.SIFT_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+            
+        # Estimate motion between sequential images of the left camera
+        
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}')
+        
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+
+""" --- Replacing StereoSGBM with StereoBM --- """
+def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.SIFT_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+            
+        # Estimate motion between sequential images of the left camera
+        
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+
+""" --- Only taking the top 100 matches for motion estimation ---"""
+def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.SIFT_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # Only take the top 100 matches
+        if(len(matches)>100):
+            matches = matches[:100]
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+
+""" --- using Lowe's Ratio test to determine good matches --- """
+""" ---         using StereoBM      ----  """
+def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.SIFT_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        # matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.3*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+""" --- using Lowe's Ratio test to determine good matches --- """
+""" ---         using StereoSGBM      ----"""
+def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+         
+            
+        matcher = cv2.StereoSGBM_create(numDisparities=80,
+                                        minDisparity=3,
+                                        blockSize=21,
+                                        P1 = 8 * 1 * 21 ** 2,
+                                        P2 = 32 * 1 * 21 ** 2,
+                                        mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+            
+
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16            
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.SIFT_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        # matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.3*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+
+""" --- Using ORB for feature detection instead of SIFT  --- """
+""" ---         using StereoBM      ----  """
+def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.ORB_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        #matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.65*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+""" --- Using ORB for feature detection instead of SIFT  --- """
+""" ---         using StereoSGBM      ----  """
+def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        
+        matcher = cv2.StereoSGBM_create(numDisparities=80,
+                                        minDisparity=3,
+                                        blockSize=21,
+                                        P1 = 8 * 1 * 21 ** 2,
+                                        P2 = 32 * 1 * 21 ** 2,
+                                        mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY)
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.ORB_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        matcher = cv2.BFMatcher_create(cv2.NORM_L2, crossCheck=False)
+        matches = matcher.knnMatch(des0, des1, k=2)
+        #matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.65*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+# orb, bm, flann, lowe ration test
+def algorithm_8(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    
+    if(end_pose == None or end_pose>len(left_image_files)):
+        end_pose = len(left_image_files)
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    num_frames = end_pose - start_pose
+
+    # statistics for algo execution
+    total_time = 0
+
+    # Decompose left/right camera projection matrix to get intrinsic k matrix
+    k_left, r_left, t_left,_,_,_,_ = cv2.decomposeProjectionMatrix(P0)
+    t_left = (t_left / t_left[3])[:3]
+    k_right, r_right, t_right, _, _, _, _ = cv2.decomposeProjectionMatrix(P1)
+    t_right = (t_right / t_right[3])[:3]
+    # Get constant values for algorithm 
+    b = t_right[0] - t_left[0]  #  baseline of stereo pair
+    cx = k_left[0, 2]
+    cy = k_left[1, 2]
+    fx = k_left[0, 0]
+    fy = k_left[1, 1]
+
+
+    # Establish homogeneous transformation matrix. First pose is ground truth    
+    T_tot = gt[start_pose]
+    trajectory = np.zeros((num_frames, 3, 4))
+    trajectory[0] = T_tot[:3, :]
+
+
+    for i in range(num_frames - 1):
+        # Stop if we've reached the second to last frame, since we need two sequential frames
+
+        # Start timer for frame
+        start = time.time()
+        # Get our stereo images for depth estimation
+        seq_dir = f'./kittiDataSet/sequences/{sequence}/'
+        image_left = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_right = cv2.imread(seq_dir + 'image_1/' + right_image_files[start_pose + i], cv2.IMREAD_UNCHANGED)
+        image_plus1 = cv2.imread(seq_dir + 'image_0/' + left_image_files[start_pose+ i +1], cv2.IMREAD_UNCHANGED)  
+        
+        matcher = cv2.StereoBM_create()
+
+        matcher.setNumDisparities(80)
+        matcher.setBlockSize(21)
+        matcher.setPreFilterCap(11)
+        matcher.setUniquenessRatio(0)
+        matcher.setSpeckleRange(1)
+        matcher.setSpeckleWindowSize(0)
+        matcher.setDisp12MaxDiff(14)
+        matcher.setMinDisparity(3)
+        matcher.setPreFilterType(0)
+        matcher.setPreFilterSize(17)
+        matcher.setTextureThreshold(0)   
+            
+        disp = matcher.compute(image_left, image_right).astype(np.float32)/16       
+        
+
+        # Avoid instability and division by zero
+        disp[disp == 0.0] = 0.1
+        disp[disp == -1.0] = 0.1
+        
+        # Make empty depth map then fill with depth
+        depth = np.ones(disp.shape)
+        depth = fx * b / disp
+        
+        # Get keypoints and descriptors for left camera image of two sequential frames
+        det = cv2.ORB_create()
+        kp0, des0 = det.detectAndCompute(image_left,None)
+        kp1, des1 = det.detectAndCompute(image_plus1,None)
+        
+        # Get matches between features detected in the two images
+        FLANN_INDEX_KDTREE = 0
+        index_parameter = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+        search_parameter = dict(checks = 20)
+        matcher = cv2.FlannBasedMatcher(index_parameter, search_parameter)
+        matches = matcher.knnMatch(np.asarray(des0, np.float32), np.asarray(des1, np.float32), k=2)
+        #matches = sorted(matches, key = lambda x:x[0].distance) # sort the matches with lowest distance at top
+
+        # ratio test as per Lowe's paper.  Remove points that fail the ratio test
+        delete = []
+        for ii,(m,n) in enumerate(matches):
+            if m.distance > 0.65*n.distance:
+                delete.append(ii)
+        matches = np.delete(matches, delete, 0)
+            
+        # Estimate motion between sequential images of the left camera
+        rmat = np.eye(3)
+        tvec = np.zeros((3, 1))
+        
+        image1_points = np.float32([kp0[m.queryIdx].pt for (m,n) in matches])
+        image2_points = np.float32([kp1[m.trainIdx].pt for (m,n) in matches])
+        
+        object_points = np.zeros((0, 3))
+        delete = []
+
+        # Extract depth information of query image at match points and build 3D positions
+        for j, (u, v) in enumerate(image1_points):
+            z = depth[int(v), int(u)]
+            # prune points with a depth greater than a specified limit because they are erroneous
+            if z > 3000:
+                delete.append(j)
+                continue
+                
+            # Use arithmetic to extract x and y (faster than using inverse of k)
+            x = z*(u-cx)/fx
+            y = z*(v-cy)/fy
+            object_points = np.vstack([object_points, np.array([x, y, z])])
+            # Equivalent math with dot product w/ inverse of k matrix, but SLOWER (see Appendix A)
+            #object_points = np.vstack([object_points, np.linalg.inv(k).dot(z*np.array([u, v, 1]))])
+            #object_points = np.vstack([object_points, np.linalg.inv(k_left) @ (z * np.array([u, v, 1]))])
+
+        image1_points = np.delete(image1_points, delete, 0)
+        image2_points = np.delete(image2_points, delete, 0)
+        
+        # Use PnP algorithm with RANSAC to compute image 2 transformation from image 1
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(object_points, image2_points, k_left, None)
+        
+        # Convert from Rodriques format to rotation matrix format
+        rmat = cv2.Rodrigues(rvec)[0]
+        
+        # Create blank homogeneous transformation matrix
+        Tmat = np.eye(4)
+        # Place resulting rotation matrix  and translation vector in their proper locations
+        # in homogeneous T matrix
+        Tmat[:3, :3] = rmat
+        Tmat[:3, 3] = tvec.T
+        
+        T_tot = T_tot @ np.linalg.inv(Tmat)
+        if gtInt > 0 and (i+1)%gtInt==0:
+            T_tot = gt[start_pose+i+1]
+            
+        # Place pose estimate in i+1 to correspond to the second image, which we estimated for
+        trajectory[i+1, :, :] = T_tot[:3, :]
+        
+        # End the timer for the frame and report frame rate to user
+        end = time.time()
+        computation_time = end-start
+        total_time += computation_time
+        mean_time = total_time/(i+1)
+
+        print(f'Time to compute frame {i+1}: {np.round(end-start, 3)}s      Mean time: {mean_time}') 
+        xs = trajectory[:i+2, 0, 3]
+        ys = trajectory[:i+2, 1, 3]
+        zs = trajectory[:i+2, 2, 3]
+        if live_plot:
+            plt.plot(xs, ys, zs, c='r')
+            plt.pause(1e-32)
+
+    # end of algorithm, return results
+    print(f"Program execution time: {total_time}s")
+    return trajectory, mean_time, total_time
+
+
+def save_results(results, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path):
+
+    results_writable = []
+    for i in range(len(results)):
+        results_writable.append(list(np.ravel(results[i])))
+
+    gt_writable = []
+    for i in range(len(gt)):
+        gt_writable.append(list(np.ravel(gt[i]))) 
+
+    abserror_writable = []
+    for i in range(len(abserror)):
+        abserror_writable.append(list(np.ravel(abserror[i]))) 
+
+    relerror_writable = []
+    for i in range(len(relerror)):
+        relerror_writable.append(list(np.ravel(relerror[i]))) 
+        
+    angerror_writable = []
+    for i in range(len(angerror)):
+        angerror_writable.append(list(np.ravel(angerror[i]))) 
+    
+    data_to_write = {
+        "algorithm description": alg_des,
+        "odometry" : results_writable,
+        "ground truth": gt_writable,
+        "absolute error": abserror_writable,
+        "relative error": relerror_writable,
+        "angular heading error": angerror_writable,
+        "mean time" : mean_time,
+        "total time" : total_time,  
+        "start pose" : start_pose,
+        "end pose"   : end_pose,
+    }
+
+    with open(path, "w") as outfile:
+        json.dump(data_to_write, outfile)
+
+def compute_error(gt,computed_trajectory,start_pose):
+    """compute error between ground truth and computed trajectory, 
+
+    Args:
+        gt: ground truth data
+        computed_trajectory: estimated trajectory from VO
+        start_pose (int): the frame that we began the VO at
+
+    Returns:
+        abserror (list): the distances between the actual and the estimated locations
+        relerror (list): the differences between the distance between the current and next estimated points and the distance between the current and next actual points
+        angerror (list): the differences between the angle formed by the previous, current, and next estimated points and the angle formed by the previous, current, and next actual points
     """
-    Given a list of points and lines, draw them on an image
-    inputs:
-    img - the image to draw on
-    lines - list of lines in (a,b,c) format corresponding to ax + by + c = 0
-    pts - list of points, where each point is associated with line of same index
-    outputs:
-    img - the image that was drawn on
-    """
-    r, c = img.shape
-    img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
+    #if no correct starting frame, make it 0
+    if(start_pose == None or start_pose<0):
+        start_pose = 0
+    #get relevant ground truth data
+    gt = gt[start_pose:,:,3]
+    #get relevant estimated trajectory
+    computed_trajectory = computed_trajectory[:,:,3]
+    #initialize error lists
+    abserror = []
+    relerror = []
+    angerror = []
+    
+    #calculation of absolute error
+    for i in range(len(computed_trajectory)):
+        abserror.append(abs(np.linalg.norm(gt[i]-computed_trajectory[i])))
+    
+    #calculation of relative errors
+    for j in range(1,len(computed_trajectory)-1):
+        
+        #relativeDistanceError = norm( |distanceBetweenTwoGroundTruthPoints| - |distanceBetweenTwoEstimatedPoints| )
+        relerror.append(np.linalg.norm(abs(np.linalg.norm(gt[j]-gt[j+1]))-abs(np.linalg.norm(computed_trajectory[j]-computed_trajectory[j+1]))))
+        
+        #relativeAngleError = |angleBetweenThreeGroundTruthPoints| - |angleBetweenThreeEstimatedPoints|
+        ba1 = gt[j-1] - gt[j]
+        bc1 = gt[j+1] - gt[j]
+        cosine_angle1 = np.dot(ba1, bc1) / (np.linalg.norm(ba1) * np.linalg.norm(bc1))
+        angle1 = np.arccos(cosine_angle1)
+        ba2 = computed_trajectory[j-1] - computed_trajectory[j]
+        bc2 = computed_trajectory[j+1] - computed_trajectory[j]
+        cosine_angle2 = np.dot(ba2, bc2) / (np.linalg.norm(ba2) * np.linalg.norm(bc2))
+        angle2 = np.arccos(cosine_angle2)
+        angerror.append(abs(np.degrees(angle1)-np.degrees(angle2)))
 
-    for line, pt in zip(lines, pts):
-
-        # get a random color
-        color = tuple(np.random.randint(0, 255, 3).tolist())
-
-
-        # select points on the left and right side of the image
-        # calculate associated y value
-        x0, y0 = map(int, [0, -line[2] / line[1]])
-        x1, y1 = map(int, [c, -(line[2] + line[0] * c) / line[1] ])
-
-        # Color the points
-        img = cv.line(img, (x0, y0), (x1, y1), color, 1)
-        img = cv.circle(img, tuple(pt), 5, color, -1)
-
-    return img
-
-def detectMatches_bruteforce(img1,img2):
-    """
-    Detect matches between pictures using feature matching
-    inputs:
-    img1 - image 1
-    img2 - image 2
-    outputs:
-    imageMatches - the matching points on the combined image
-    pts1 - points from img1
-    pts2 - points from img2
-    """
-    sift = cv.SIFT_create()
-
-    keypoints1, descriptors1 = sift.detectAndCompute(img1,None)
-    keypoints2, descriptors2 = sift.detectAndCompute(img2,None)
-
-    # Initialize the feature matcher using brute-force matching
-    bf = cv.BFMatcher(cv.NORM_L2, crossCheck=True)
-
-    # Match the descriptors using brute-force matching
-    matches = bf.match(descriptors1, descriptors2)
-
-    # Sort the matches by distance (lower is better)
-    matches = sorted(matches, key=lambda x: x.distance)
-
-    # Draw the top 50 matches
-    numMatches = 40
-    imageMatches = cv.drawMatches(img1, keypoints1, img2, keypoints2, matches[:numMatches], None)
-    pts1 = np.float32([keypoints1[match.queryIdx].pt for match in matches])
-    pts2 = np.float32([keypoints2[match.trainIdx].pt for match in matches])
-
-    pts1 = np.int32(pts1)
-    pts2 = np.int32(pts2)
-    return imageMatches,pts1,pts2
-
-
-def detectMatches_flann(img1, img2, k:int = None):
-    sift = cv.SIFT_create()
-
-    # find the keypoints and descriptors with SIFT
-    kp1, des1 = sift.detectAndCompute(img1,None)
-    kp2, des2 = sift.detectAndCompute(img2,None)
-
-    # FLANN parameters
-    FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-    search_params = dict(checks=50)
-
-    flann = cv.FlannBasedMatcher(index_params,search_params)
-    matches = flann.knnMatch(des1,des2,k=2)
-
-    pts1 = []
-    pts2 = []
-    good = []
-
-    # ratio test as per Lowe's paper
-    for i,(m,n) in enumerate(matches):
-        if m.distance < 0.4*n.distance:
-            pts1.append(kp1[m.queryIdx].pt)
-            pts2.append(kp2[m.trainIdx].pt)
-            good.append([m])
-
-    matches_mask = None
-    if k is not None:
-        matches_mask = [[0]] * len(good)
-        matches_mask[0:k] = [[1]] * k
-
-    # drawing nearest neighbours
-    imgMatches = cv.drawMatchesKnn(img1, kp1, img2, kp2, good, None, matchesMask=matches_mask)
-    pts1 = np.array(pts1)
-    pts2 = np.array(pts2)
-
-    return imgMatches, pts1, pts2
-
+    return abserror,relerror,angerror
 
 if __name__ == "__main__":
+    
     start_time = datetime.now()
-    print(f"[{datetime.now() - start_time}] Starting image pipeline")
+    frame_rate = 10 #Hz
+    sequence = "00"
+    left_image_files, right_image_files, P0, P1, gt, times = data_set_setup(sequence)
+    # Setup plot that will be used on each iteration of code
+    fig = plt.figure(figsize=(14, 14))
+    plt.title("Trajectory")
+    ax = fig.add_subplot(projection='3d')
+    ax.view_init(elev=-20, azim=270)
+    xs = gt[:, 0, 3]
+    ys = gt[:, 1, 3]
+    zs = gt[:, 2, 3]
+    ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
+    ax.plot(xs, ys, zs, c='b')
 
-    """ --- Uncomment to recalibrate cameras --- """
-    left_mtx, left_dst_coef, left_newcameramtx = calibrate_camera(path = "./droneDataSet/images/calibration/leftCal/*.png")
-    right_mtx, right_dst_coef, right_newcameramtx = calibrate_camera(path = "./droneDataSet/images/calibration/rightCal/*.png")
+    # Choose Algorithm
+    description_1 = "Algorithm 1: SGBM + SIFT  + BF "
+    description_2 = "Algorithm 2: BM + SIFT + BF "
+    description_3 = "Algorithm 3: BM + SIFT + BF + Filter: Top 100 Matches "
+    description_4 = "Algorithm 4: BM + SIFT + BF + Filter: Lowe Ratio Test "
+    description_5 = "Algorithm 5: SGBM + SIFT + BF + Filter: Lowe Ratio Test "
+    description_6 = "Algorithm 6: BM + ORB + BF + Filter: Lowe Ratio Test"
+    description_7 = "Algorithm 7: SGBM + ORB + BF + Filter: Lowe Ratio Test"
+    description_8 = "Algorithm 8: BM + ORD + FLANN + Filter: Lowe Ratio Test"
+    
+
+    p1 =  "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
+    p2 = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
+    p3 = "./kittiDataSet/results/algorithm_3/algorithm_3.json"
+    p4 = "./kittiDataSet/results/algorithm_4/algorithm_4.json"
+    p5 = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
+    p6 = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
+    p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
+    p8 = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
+
+    #user interface initialization and processes
+    print("Menu: ")
+    print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + FEATURE MATCH FILTER")
+    print(description_1)
+    print(description_2)
+    print(description_3)
+    print(description_4)
+    print(description_5)
+    print(description_6)
+    print(description_7)
+    print(description_8)
+    print("Enter -1 to Automatically collect data from All algorithms")
+
+    alg_num = input("Enter Algorithm Number: ")
+
+    alg_num = int(alg_num)
 
 
+    auto = 0
+    match alg_num:
+        case -1:
+            auto = 1
+            alg_des = 'AUTO-ALL'
+        case 1:
+            alg = algorithm_1
+            alg_des = description_1
+            path = "./kittiDataSet/results/algorithm_1/algorithm_1.json" 
+        case 2:
+            alg = algorithm_2
+            alg_des = description_2
+            path = "./kittiDataSet/results/algorithm_2/algorithm_2.json"
+        case 3:
+            alg = algorithm_3
+            alg_des = description_3
+            path = "./kittiDataSet/results/algorithm_3/algorithm_3.json"
+        case 4:
+            alg = algorithm_4
+            alg_des = description_4
+            path = "./kittiDataSet/results/algorithm_4/algorithm_4.json"
+        case 5:
+            alg = algorithm_5
+            alg_des = description_5
+            path = "./kittiDataSet/results/algorithm_5/algorithm_5.json"
+        case 6:
+            alg = algorithm_6
+            alg_des = description_6
+            path = "./kittiDataSet/results/algorithm_6/algorithm_6.json"
+        case 7:
+            alg = algorithm_7
+            alg_des = description_7
+            path = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
+        case 8:
+            alg = algorithm_8
+            alg_des = description_8
+            path = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
+        case default:
+            alg = algorithm_1
+            alg_des = description_1
+            path = "./kittiDataSet/results/algorithm_1/algorithm_1.json"
+    
+    print("CHOSEN:")
+    print(alg_des)
+    #if chose to not run all, allow for overriding path location
+    if alg_num != -1:
+        temp = input('Temporary Run [0/1] - Will override path location to save data in separate temporary folder under algorithm folder: ')
+        temp = int(temp)
+        if temp:
+            path = path[:35] + '/temp/temp.json'
+    #ask to show live plot
+    live_plot = input('Show live plot [0/1]: ')
+    live_plot = int(live_plot)
 
-    """ --- Uncomment to load calibration from file --- """
-    #left_mtx, left_dst_coef  = extractParams("./calibrationData/leftCal.json")
-    #right_mtx, right_dst_coef  = extractParams("./calibrationData/rightCal.json")
+    #ask to save data to file
+    save_json_data = input('Save JSON Data: [0/1] - Needed ON to display/save end plots + summary: ')
+    save_json_data = int(save_json_data)
+
+    #ask what to save and show if saving to file
+    if save_json_data:
+        show_plots = input('Show All Plots: [0/1]: ')
+        show_plots = int(show_plots)
+        
+        save_plots = input('Save All Plots [0/1]: ')
+        save_plots = int(save_plots)
+    else:
+        show_plots = 0
+        save_plots = 0
+
+    #enter begining and ending position
+    start_pose = input("Enter Starting Frame (must be smaller than 4539, will default to 0 if less than 0): ")
+    start_pose = int(start_pose)
+
+    end_pose = input("Enter Ending Frame (must be greater than Starting Frame, will default to 4540 if greater than 4540): ")
+    end_pose = int(end_pose)
+
+    #enter frequency to inject ground truth
+    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 if never): ")
+    gtInt = int(round(frame_rate*float(gtInt)))
+
+    
+    algs = [algorithm_1, algorithm_2, algorithm_3, algorithm_4, algorithm_5, algorithm_6, algorithm_7, algorithm_8]
+    alg_descrps = [description_1, description_2, description_3, description_4, description_5, description_6, description_7, description_8]
+    alg_paths = [p1,p2,p3,p4,p5,p6,p7,p8]
+
+    # automatically loops through all algorithms for data collection
+    if auto:
+        print('BEGINNING AUTOMATIC DATA COLLECTION OF ALL ALGORITHMS')
+        print('--WILL NOT DISPLAY ANY PLOTS, BUT WILL SAVE ALL DATA [JSON, PLOTS]--')
+        for i in range(len(algs)):
+            alg = algs[i]
+            alg_des = alg_descrps[i]
+            path = alg_paths[i] 
+            
+            # Run algorithm
+            # added third argument: 0,1 - LIVE PLOTTING - shows real time plot. DEFAULT: 1 [ON]
+            computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot = 0, gtInt = 0.001)
+            
+            # Compute Error 
+            abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
+
+            # Save/Overwrite result data
+            save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
+
+            # display/save figs + summary
+            # first argument: path
+            # second argument: 0,1 - DISPLAY - shows all plots. DEFAULT: 1 [ON]
+            # thirds argument: 0,1 - SAVE - saves all images + summary in respective folder locations. DEFAULT: 0 [OFF]
+            # NOTE: SAVE ON WILL OVERWRITE EXISITING FILES WITH SAME NAMES IN DESGINATED FOLDERS
+
+            displayResults(path, display = 0 , save = 1, temp=0)
+        
+        print('AUTOMATIC DATA COLLECTION FINISHED')
+    else:
+        computed_trajectory, mean_time, total_time = alg(start_pose, end_pose, live_plot, gtInt)
+        abserror,relerror,angerror = compute_error(gt, computed_trajectory,start_pose)
+        plt.waitforbuttonpress()
+        if save_json_data:
+            plt.close()
+            save_results(computed_trajectory, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path)
+            displayResults(path, show_plots, save_plots, temp)
+    
+    
+    print('Finished')
 
 
-    imgLeft = cv.imread("./droneDataSet/images/flight/leftFlight/flightleft_out_0000000510.png")
-    imgRight = cv.imread("./droneDataSet/images/flight/rightFlight/flightright_out_0000000510.png")
+    
+    
 
-    #matchesImg1, pts1, pts2 = detectMatches_bruteforce(img1= imgLeft, img2= imgRight)
-    matchesImg2, pts1, pts2 = detectMatches_flann(img1= imgLeft, img2= imgRight, k=10)
-    cv.imshow("matches",matchesImg2)
-
-    #get fundamental matrix
-    # changing from LMEDS to RANSAC produces wildly different results
-    F, inliers = cv.findFundamentalMat(pts1, pts2, cv.FM_LMEDS)
-    #get essential matrix
-    E = right_mtx.T @ F @ left_mtx
-    print(E)
-    #_,r,t,_ = cv.recoverPose(E,pts1,pts2,cameraMatrix=left_mtx)
-    # using this function because we have two different camera matrices
-    numberOfInliers, E, R, t, mask = cv.recoverPose(pts1, pts2, left_mtx, left_dst_coef, right_mtx, right_dst_coef, method=cv.LMEDS)
-    print(E)
-    # we see here that the two different methods return different E matrix????
-    # something is wrong at this point
-
-    #only keep inlier points from the fundamental matrix calculation
-    #ptsLeft = pts1[inliers.ravel()==1]
-    #ptsRight = pts2[inliers.ravel()==1]
-
-    h1, w1, _ = imgLeft.shape
-    h2, w2, _ = imgRight.shape
-
-    #rectify the images by getting R and P matrices to be used to undistort in next step
-    R1, R2, P1, P2, Q, _, _ = cv.stereoRectify(left_mtx, np.zeros((1,5)),right_mtx, np.zeros((1,5)),[w1,h1], r, t, alpha=1)
-
-    # Generate rectification maps
-    map1_left, map2_left = cv.initUndistortRectifyMap(left_mtx, np.zeros((1,5)), R1, P1[:,:-1], [w1,h1], cv.CV_32FC1)
-    map1_right, map2_right = cv.initUndistortRectifyMap(right_mtx, np.zeros((1,5)), R2, P2[:,:-1], [w2,h2], cv.CV_32FC1)
-
-    # Rectify left and right images
-    img1_rect = cv.remap(imgLeft, map1_left, map2_left, cv.INTER_LINEAR)
-    img2_rect = cv.remap(imgRight, map1_right, map2_right, cv.INTER_LINEAR)
-
-
-    cv.imshow("im1", img1_rect)
-    cv.imshow("im2", img2_rect)
-
-    print(f"[{datetime.now() - start_time}] Pipeline complete!")
-    cv.waitKey()
+    

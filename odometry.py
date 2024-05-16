@@ -44,8 +44,22 @@ def data_set_setup(sequence) -> tuple:
     return (left_image_files, right_image_files, P0, P1, gt, times)
 
 
-
 def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 1 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo SGBM, SIFT, a BF matcher, and no matches pruning 
+    
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
     
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
@@ -74,10 +88,6 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     T_tot = gt[start_pose]
     trajectory = np.zeros((num_frames, 3, 4))
     trajectory[0] = T_tot[:3, :]
-
-    # Choose stereo matching algorithm
-    matcher_name = 'sgbm'
-
 
 
     for i in range(num_frames - 1):
@@ -195,9 +205,23 @@ def algorithm_1(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     return trajectory, mean_time, total_time
 
 
-""" --- Replacing StereoSGBM with StereoBM --- """
 def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 2 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, SIFT, a BF matcher, and no matches pruning 
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -343,9 +367,22 @@ def algorithm_2(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     return trajectory, mean_time, total_time
 
 
-""" --- Only taking the top 100 matches for motion estimation ---"""
 def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 3 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, SIFT, a BF matcher, uses the 100 matches with the closest match
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -494,10 +531,23 @@ def algorithm_3(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     return trajectory, mean_time, total_time
 
 
-""" --- using Lowe's Ratio test to determine good matches --- """
-""" ---         using StereoBM      ----  """
 def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 4 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, SIFT, a BF matcher, and Lowe's ratio test for matches pruning
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -646,10 +696,24 @@ def algorithm_4(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     print(f"Program execution time: {total_time}s")
     return trajectory, mean_time, total_time
 
-""" --- using Lowe's Ratio test to determine good matches --- """
-""" ---         using StereoSGBM      ----"""
+
 def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 5 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo SGBM, SIFT, a BF matcher, and Lowe's ratio test for matches pruning
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -794,10 +858,23 @@ def algorithm_5(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     return trajectory, mean_time, total_time
 
 
-""" --- Using ORB for feature detection instead of SIFT  --- """
-""" ---         using StereoBM      ----  """
 def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 6 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, ORB, a BF matcher, and Lowe's ratio test for matches pruning
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -946,10 +1023,24 @@ def algorithm_6(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     print(f"Program execution time: {total_time}s")
     return trajectory, mean_time, total_time
 
-""" --- Using ORB for feature detection instead of SIFT  --- """
-""" ---         using StereoSGBM      ----  """
+
 def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 7 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, ORB, a BF matcher, and Lowe's ratio test for matches pruning
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -1092,9 +1183,24 @@ def algorithm_7(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
     print(f"Program execution time: {total_time}s")
     return trajectory, mean_time, total_time
 
-# orb, bm, flann, lowe ration test
+
 def algorithm_8(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt:int = None):
+    '''
+    Algorithm 8 used to perform visual odometry on a sequence from the KITTI visual odometry dataset.
+    Uses Stereo BM, ORB, a FLANN matcher, and Lowe's ratio test for matches pruning
     
+    Optional Arguments:
+    start_pose -- (int) starting frame number
+    end_pose -- (int) ending frame number
+    live_plot -- (int)  1 or 0.  If 1 a plot will be displayed that updates as the VO is computed
+    gtInt -- (int) frequency to inject ground truth into the algorithm.  Input a value between 0 and 0.1 for no ground truth injection
+    
+    Returns:
+    trajectory -- (list) Array of shape Nx3x4 of estimated poses of vehicle for each computed frame.
+    mean_time -- (float) Average computation time per frame
+    total_time -- (float) Total computation time
+    '''
+
     if(end_pose == None or end_pose>len(left_image_files)):
         end_pose = len(left_image_files)
     if(start_pose == None or start_pose<0):
@@ -1248,6 +1354,25 @@ def algorithm_8(start_pose:int = None, end_pose:int = None, live_plot = 1, gtInt
 
 
 def save_results(results, gt, mean_time, total_time, abserror, relerror, angerror, alg_des, start_pose, end_pose, path):
+    '''
+    Saves the results from an algorithm to a JSON file so that they can be loaded and viewed later
+    
+    Arguments:
+        results -- (array) Nx3x4 of transformation matrices that are the output of the VO algo
+        gt -- (array) Nx3x4 of ground truth transformation matrices 
+        mean_time -- (float) Average image processing time
+        total_time -- (float) Total execution time of an algorithm
+        abserror -- (list) List of floats for the absolute error of each frame of the algorithm
+        relerror -- (list) List of floats for the relative error of each frame of the algorithm
+        angerror -- (list) List of angle errors of each frame of the algorithm
+        alg_des -- (string) String describing the algorithm
+        start_pose -- (int) The starting position of the algorithm
+        end_pose -- (int) The ending position of the algorithm
+        path -- (string) The path to save the image as
+    
+    Returns:
+        Nothing
+    '''
 
     results_writable = []
     for i in range(len(results)):
@@ -1285,6 +1410,7 @@ def save_results(results, gt, mean_time, total_time, abserror, relerror, angerro
     with open(path, "w") as outfile:
         json.dump(data_to_write, outfile)
 
+
 def compute_error(gt,computed_trajectory,start_pose):
     if(start_pose == None or start_pose<0):
         start_pose = 0
@@ -1309,6 +1435,7 @@ def compute_error(gt,computed_trajectory,start_pose):
 
         angerror.append(abs(np.degrees(angle1)-np.degrees(angle2)))
     return abserror,relerror,angerror
+
 
 if __name__ == "__main__":
     

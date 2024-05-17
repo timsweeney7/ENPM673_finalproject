@@ -1412,17 +1412,38 @@ def save_results(results, gt, mean_time, total_time, abserror, relerror, angerro
 
 
 def compute_error(gt,computed_trajectory,start_pose):
+    """compute error between ground truth and computed trajectory, 
+    Args:
+        gt: ground truth data
+        computed_trajectory: estimated trajectory from VO
+        start_pose (int): the frame that we began the VO at
+    Returns:
+        abserror (list): the distances between the actual and the estimated locations
+        relerror (list): the differences between the distance between the current and next estimated points and the distance between the current and next actual points
+        angerror (list): the differences between the angle formed by the previous, current, and next estimated points and the angle formed by the previous, current, and next actual points
+    """
+    #if no correct starting frame, make it 0
     if(start_pose == None or start_pose<0):
         start_pose = 0
+    #get relevant ground truth data
     gt = gt[start_pose:,:,3]
+    # get relevant estimated trajectory
     computed_trajectory = computed_trajectory[:,:,3]
+    #initialize error lists
     abserror = []
     relerror = []
     angerror = []
+
+    #calculation of absolute error
     for i in range(len(computed_trajectory)):
         abserror.append(abs(np.linalg.norm(gt[i]-computed_trajectory[i])))
+
+    #calculation of relative errors
     for j in range(1,len(computed_trajectory)-1):
+        #relativeDistanceError = norm( |distanceBetweenTwoGroundTruthPoints| - |distanceBetweenTwoEstimatedPoints| )
         relerror.append(abs(np.linalg.norm(abs(np.linalg.norm(gt[j]-gt[j+1]))-abs(np.linalg.norm(computed_trajectory[j]-computed_trajectory[j+1])))))
+        
+        #relativeAngleError = |angleBetweenThreeGroundTruthPoints| - |angleBetweenThreeEstimatedPoints|
         ba1 = gt[j-1] - gt[j]
         bc1 = gt[j+1] - gt[j]
         cosine_angle1 = np.dot(ba1, bc1) / (np.linalg.norm(ba1) * np.linalg.norm(bc1))
@@ -1474,9 +1495,9 @@ if __name__ == "__main__":
     p7 = "./kittiDataSet/results/algorithm_7/algorithm_7.json"
     p8 = "./kittiDataSet/results/algorithm_8/algorithm_8.json"
 
-
+    #user interface initialization and processes
     print("Menu: ")
-    print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + ADD ONS")
+    print("STEREO MATCHER + FEATURE DETECTOR + FEATURE MATCHER + FEATURE MATCH FILTER")
     print(description_1)
     print(description_2)
     print(description_3)
@@ -1536,19 +1557,22 @@ if __name__ == "__main__":
     
     print("CHOSEN:")
     print(alg_des)
+    #if chose to not run all, allow for overriding path location
 
     if alg_num != -1:
         temp = input('Temporary Run [0/1] - Will override path location to save data in separate temporary folder under algorithm folder: ')
         temp = int(temp)
         if temp:
             path = path[:35] + '/temp/temp.json'
-
+    #ask to show live plot
     live_plot = input('Show live plot [0/1]: ')
     live_plot = int(live_plot)
 
+    #ask to save data to file
     save_json_data = input('Save JSON Data: [0/1] - Needed ON to display/save end plots + summary: ')
     save_json_data = int(save_json_data)
 
+    #ask what to save and show if saving to file
     if save_json_data:
         show_plots = input('Show All Plots: [0/1]: ')
         show_plots = int(show_plots)
@@ -1559,14 +1583,14 @@ if __name__ == "__main__":
         show_plots = 0
         save_plots = 0
 
-
-    start_pose = input("Enter Start Pose: ")
+    #enter beginning and ending position
+    start_pose = input("Enter Start Frame: ")
     start_pose = int(start_pose)
-
-    end_pose = input("Enter End Pose: ")
+    end_pose = input("Enter End Frame: ")
     end_pose = int(end_pose)
 
-    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 but > 0 if never): ")
+    #enter frequency to inject ground truth
+    gtInt = input("Enter frequency (in seconds) to inject ground truth data (Enter value < 0.1 if never): ")
     gtInt = int(round(frame_rate*float(gtInt)))
     
     

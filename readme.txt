@@ -92,7 +92,7 @@ This number specifies which frame of the sequences the algorithm starts simulati
 
 See step#5, this number specifies which frame the algorithm will stop simulation on.
 
-7) Enter ground truth injection period, a number between 0 and 0.1 for NONE, and higher for some:
+7) Enter ground truth injection period, a number less than 0.1 for NONE, and 0.1 or greater for that frequency:
 
 Ground truth is available for the entire kitti data set. The number entered here specifies how often ground truth is used instead of estimated trajectory by the algorithm. Since
 a 10Hz camera is used, the fastest ground truth can be injected is every 0.1 seconds, which results in no estimation by the algorithm.
@@ -159,10 +159,3 @@ is extremely important to have the same file/structure/naming scheme as this scr
 There is no main function, only an if statment checking whether the computer is looking for main, in which the entire architecture of this project is written.
 The terminal prompts are all called here in order, and all options are read to the user as described in the instructions. Based on these, either the switch case 
 is used, or the for loop for automatic data collection.
-
-
-
-
-
-
-

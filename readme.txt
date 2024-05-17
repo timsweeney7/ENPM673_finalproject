@@ -37,7 +37,7 @@ working directory
         - algorithm_n (folder, need one for all 1->8 algorithms)
             - figs (folder)
             - temp (folder)
-- utilitiets (folder)
+- utilities (folder)
     - readResults.py
 - odometry.py
 
